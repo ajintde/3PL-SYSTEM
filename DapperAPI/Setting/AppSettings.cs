@@ -21,5 +21,11 @@
         public string PrimaryKeyNotFound { get; set; }
         public string UpdateDateNotFound { get; set; }
         public string CompNotFound { get; set; }
+
+        public string NoData { get; set; }
+        public string InsertFail { get; set; }
+        public string InsertSuccess { get; set; }
+        public string DeleteSuccess { get; set; }
+        public string DeleteNotFound { get; set; }
     }
 }

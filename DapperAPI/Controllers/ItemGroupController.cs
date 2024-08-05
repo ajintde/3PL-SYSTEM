@@ -106,30 +106,7 @@ namespace DapperAPI.Controllers
             }
         }
 
-        [HttpDelete("{id}")]
-        public async Task<IActionResult> Delete(string id, string companyCode, string user)
-        {
-            try
-            {
-                if (!await ValidateUserAndCompany(user, companyCode))
-                {
-                    return Unauthorized("User validation failed.");
-                }
-                var itemgroup = await _itemGroupReposotory.GetById(id, companyCode, user);
-                if (itemgroup == null)
-                {
-                    return NotFound($"Item with ID: {id} not found");
-                }
-
-                await _itemGroupReposotory.Delete(id, companyCode, user);
-                return NoContent(); // Successful deletion with no content to return
-            }
-            catch (Exception ex)
-            {
-
-                return StatusCode(400, ex.Message);
-            }
-        }
+        
 
 
     }

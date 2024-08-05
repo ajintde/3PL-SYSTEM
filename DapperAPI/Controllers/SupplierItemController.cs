@@ -106,29 +106,24 @@ namespace DapperAPI.Controllers
             }
         }
 
-        [HttpDelete("{id}")]
-        public async Task<IActionResult> Delete(string id, string companyCode, string user)
+        [HttpDelete]
+        [Route("DeleteByModel")]
+        public async Task<IActionResult> Delete([FromBody] OM_SUPP_ITEM item, string companyCode, string user)
         {
-            try
+            if (!await ValidateUserAndCompany(user, companyCode))
             {
-                if (!await ValidateUserAndCompany(user, companyCode))
-                {
-                    return Unauthorized("User validation failed.");
-                }
-                var suppitem = await _suppItemReposotory.GetById(id, companyCode, user);
-                if (suppitem == null)
-                {
-                    return NotFound($"Item with ID: {id} not found");
-                }
-
-                await _suppItemReposotory.Delete(id, companyCode, user);
-                return NoContent(); // Successful deletion with no content to return
+                return Unauthorized("User validation failed.");
             }
-            catch (Exception ex)
+
+            var userType = await _userValidationService.GetUserTypeAsync(user);
+            string companyCodeToUse = companyCode;
+            if (userType == "OPERATOR" && companyCode == "ALL")
             {
-
-                return StatusCode(400, ex.Message);
+                companyCodeToUse = null;
             }
+
+            var response = await _suppItemReposotory.Delete(item, companyCodeToUse, user);
+            return Ok(response);
         }
 
 

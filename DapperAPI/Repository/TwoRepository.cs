@@ -288,8 +288,8 @@ namespace DapperAPI.Repository
             if (primaryKeyProperty == null || foreignKeyProperty == null)
             {
                 response.ValidationSuccess = false;
-                response.SuccessString = "500";
-                response.ErrorString = "Primary key or foreign key property not found.";
+                response.StatusCode = _appSettings.StatusCodes.Error;
+                response.ErrorString = _appSettings.SuccessStrings.PrimaryKeyNotFound;
                 return response;
             }
 
@@ -299,8 +299,8 @@ namespace DapperAPI.Repository
             if (string.IsNullOrEmpty(primaryKeyValue))
             {
                 response.ValidationSuccess = false;
-                response.SuccessString = "500";
-                response.ErrorString = "Primary key value is required.";
+                response.SuccessString = _appSettings.StatusCodes.Error;
+                response.ErrorString = _appSettings.SuccessStrings.PrimaryKeyError;
                 return response;
             }
 
@@ -368,7 +368,8 @@ namespace DapperAPI.Repository
                         var NewData = await GetById(primaryKeyValue,companyCode,user);
 
                         response.ValidationSuccess = true;
-                        response.SuccessString = "200";
+                        response.StatusCode =_appSettings.StatusCodes.Success;
+                        response.SuccessString = _appSettings.SuccessStrings.InsertSuccess;
                         response.ReturnCompleteRow = NewData;
                     }
                     catch (Exception ex)
@@ -376,7 +377,7 @@ namespace DapperAPI.Repository
                         // Rollback the transaction in case of an error
                         transaction.Rollback();
                         response.ValidationSuccess = false;
-                        response.SuccessString = "500";
+                        response.StatusCode = _appSettings.StatusCodes.Error;
                         response.ErrorString = ex.Message;
                     }
                 }
@@ -396,8 +397,8 @@ namespace DapperAPI.Repository
             if (!detailKeyProperties.Any())
             {
                 response.ValidationSuccess = false;
-                response.SuccessString = "500";
-                response.ErrorString = "Primary key not found for Detail.";
+                response.StatusCode = _appSettings.StatusCodes.Error;
+                response.ErrorString = _appSettings.SuccessStrings.PrimaryKeyNotFound;
                 return response;
             }
 
@@ -405,8 +406,8 @@ namespace DapperAPI.Repository
             if (primaryKeyValues.Any(string.IsNullOrEmpty))
             {
                 response.ValidationSuccess = false;
-                response.SuccessString = "500";
-                response.ErrorString = "Primary key value is required for Detail.";
+                response.SuccessString = _appSettings.StatusCodes.Error;
+                response.ErrorString = _appSettings.SuccessStrings.PrimaryKeyError;
                 return response;
             }
 
@@ -459,19 +460,20 @@ AND {compCodeProperty.Name} = @CompCode
                             if (insertedRow != null)
                             {
                                 response.ValidationSuccess = true;
-                                response.SuccessString = "200";
+                                response.StatusCode = _appSettings.StatusCodes.Success;
+                                response.SuccessString= _appSettings.SuccessStrings.InsertSuccess;
                                 response.ReturnCompleteRow = insertedRow;
                             }
                             else
                             {
                                 response.ValidationSuccess = false;
-                                response.SuccessString = "204"; // 204 No Content if nothing was found
+                                response.StatusCode = _appSettings.StatusCodes.Error; // 204 No Content if nothing was found
                             }
                         }
                         else
                         {
                             response.ValidationSuccess = false;
-                            response.SuccessString = "204"; // 204 No Content if nothing was inserted
+                            response.StatusCode = _appSettings.StatusCodes.Error; // 204 No Content if nothing was inserted
                         }
 
                         // Commit the transaction
@@ -482,7 +484,7 @@ AND {compCodeProperty.Name} = @CompCode
                         // Rollback the transaction in case of an error
                         transaction.Rollback();
                         response.ValidationSuccess = false;
-                        response.SuccessString = "500";
+                        response.SuccessString = _appSettings.StatusCodes.Error;
                         response.ErrorString = ex.Message;
                     }
                 }
@@ -1647,231 +1649,9 @@ WHERE {string.Join(" AND ", detailWhereClauses)};
             }
 
             return response;
-        }
+        }       
 
         
-
-        public async Task<CommonResponse<IEnumerable<T>>> Search<T>(string jsonModel, string sortBy, int pageNo, int pageSize, string companyCode, string user, string[] whereClause, string showDetail)
-        {
-            var response = new CommonResponse<IEnumerable<T>>();
-            try
-            {
-                var whereConditions = new List<string>();
-                var parameters = new DynamicParameters();
-
-                // Log the raw input data from Postman
-                Console.WriteLine("Raw Input Data:");
-                Console.WriteLine($"jsonModel: {jsonModel}");
-                Console.WriteLine($"sortBy: {sortBy}");
-                Console.WriteLine($"pageNo: {pageNo}");
-                Console.WriteLine($"pageSize: {pageSize}");
-                Console.WriteLine($"companyCode: {companyCode}");
-                Console.WriteLine($"user: {user}");
-                if (whereClause != null)
-                {
-                    foreach (var condition in whereClause)
-                    {
-                        Console.WriteLine($"whereClause: {condition}");
-                    }
-                }
-                Console.WriteLine($"showDetail: {showDetail}");
-
-
-                // Deserialize the JSON model into a dictionary if not null
-                if (!string.IsNullOrEmpty(jsonModel))
-                {
-                    var modelDict = JsonConvert.DeserializeObject<Dictionary<string, object>>(jsonModel);
-
-                    // Add properties from the model to the whereConditions list
-                    foreach (var kvp in modelDict)
-                    {
-                        var columnName = kvp.Key.ToUpper();
-                        var value = kvp.Value;
-
-                        if (value != null && !string.IsNullOrEmpty(value.ToString()))
-                        {
-                            whereConditions.Add($"{columnName} LIKE @{columnName}");
-                            parameters.Add($"@{columnName}", value.ToString());
-                        }
-                    }
-                }
-
-                // Add dynamic conditions for properties ending with _COMP_CODE, excluding fm_comp_code and to_comp_code
-                var modelProperties = typeof(T).GetProperties();
-                foreach (var prop in modelProperties)
-                {
-                    if (prop.Name.EndsWith("_COMP_CODE", StringComparison.OrdinalIgnoreCase) &&
-                        !string.Equals(prop.Name, "FM_COMP_CODE", StringComparison.OrdinalIgnoreCase) &&
-                        !string.Equals(prop.Name, "TO_COMP_CODE", StringComparison.OrdinalIgnoreCase))
-                    {
-                        var columnName = prop.Name.ToUpper();
-                        whereConditions.Add($"{columnName} = @{columnName}");
-                        parameters.Add($"@{columnName}", companyCode);
-                    }
-                }
-
-                // Add additional whereClause conditions if provided
-                if (whereClause != null && whereClause.Length > 0)
-                {
-                    foreach (var condition in whereClause)
-                    {
-                        if (condition.Contains("_CR_DT") || condition.Contains("_UPD_DT"))
-                        {
-                            var columnName = condition.Split(' ')[0];
-                            var operatorAndValue = condition.Substring(columnName.Length).Trim();
-
-                            // Check for BETWEEN condition
-                            if (operatorAndValue.Contains("BETWEEN"))
-                            {
-                                var dateParts = operatorAndValue.Split(new[] { "BETWEEN", "AND" }, StringSplitOptions.None)
-                                            .Select(d => d.Trim('\'', ' '))
-                                            .Where(d => !string.IsNullOrEmpty(d))
-                                            .ToArray();
-
-                                if (dateParts.Length == 2)
-                                {
-                                    var startDateStr = dateParts[0];
-                                    var endDateStr = dateParts[1];
-
-                                    Console.WriteLine($"Parsed Dates for {columnName}: START={startDateStr}, END={endDateStr}");
-
-                                    if (DateTime.TryParseExact(startDateStr, "yyyy-MM-dd", null, System.Globalization.DateTimeStyles.None, out DateTime startDate) &&
-                                        DateTime.TryParseExact(endDateStr, "yyyy-MM-dd", null, System.Globalization.DateTimeStyles.None, out DateTime endDate))
-                                    {
-                                        whereConditions.Add($"CONVERT(DATE, {columnName}) BETWEEN @{columnName}_START AND @{columnName}_END");
-                                        parameters.Add($"@{columnName}_START", startDate);
-                                        parameters.Add($"@{columnName}_END", endDate);
-                                    }
-                                    else
-                                    {
-                                        throw new FormatException($"Invalid date format for {columnName} BETWEEN condition. Expected format: yyyy-MM-dd.");
-                                    }
-                                }
-                                else
-                                {
-                                    throw new FormatException($"Invalid BETWEEN condition format for {columnName}. Expected format: 'BETWEEN 'yyyy-MM-dd' AND 'yyyy-MM-dd''.");
-                                }
-                            }
-                            else
-                            {
-                                // Extract the operator and the date value
-                                var operatorSplit = operatorAndValue.Split(' ');
-                                var @operator = operatorSplit[0];
-                                var dateValue = operatorSplit.Length > 1 ? operatorSplit[1].Trim('\'') : string.Empty;
-
-                                Console.WriteLine($"Parsed Date for {columnName}: VALUE={dateValue}");
-
-                                if (DateTime.TryParseExact(dateValue, "yyyy-MM-dd", null, System.Globalization.DateTimeStyles.None, out DateTime date))
-                                {
-                                    whereConditions.Add($"CONVERT(DATE, {columnName}) {@operator} @{columnName}");
-                                    parameters.Add($"@{columnName}", date);
-                                }
-                                else
-                                {
-                                    throw new FormatException($"Invalid date format for {columnName} condition. Expected format: yyyy-MM-dd.");
-                                }
-                            }
-                        }
-                        else
-                        {
-                            whereConditions.Add(condition);
-                        }
-                    }
-
-                }
-
-                // Construct the final SQL query with paging
-                var whereSql = whereConditions.Any() ? "WHERE " + string.Join(" AND ", whereConditions) : string.Empty;
-                var offset = (pageNo - 1) * pageSize;
-
-                // Determine the sort column
-                string orderByColumn = !string.IsNullOrEmpty(sortBy) ? sortBy.ToUpper() : modelProperties.First(p => p.GetCustomAttributes(typeof(KeyAttribute), false).Length > 0).Name.ToUpper();
-
-                var sql = $@"
-SELECT * 
-FROM {_tableName}
-{whereSql}
-ORDER BY {orderByColumn}
-OFFSET @Offset ROWS FETCH NEXT @PageSize ROWS ONLY;";
-
-                parameters.Add("@Offset", offset);
-                parameters.Add("@PageSize", pageSize);
-
-                using (var conn = _dbConnectionProvider.CreateConnection())
-                {
-                    // Log the SQL query and parameters for debugging
-                    Console.WriteLine("SQL Query: " + sql);
-                    foreach (var param in parameters.ParameterNames)
-                    {
-                        Console.WriteLine($"{param}: {parameters.Get<dynamic>(param)}");
-                    }
-
-                    var result = (await conn.QueryAsync<T>(sql, parameters)).ToList();
-
-                    if (showDetail == "Y")
-                    {
-                        var detailProperty = modelProperties.FirstOrDefault(p => p.PropertyType.IsGenericType && p.PropertyType.GetGenericTypeDefinition() == typeof(List<>));
-                        if (detailProperty != null)
-                        {
-                            var detailType = detailProperty.PropertyType.GetGenericArguments().First();
-                            var detailTableName = detailType.Name;
-
-                            // Get primary key and foreign key property names
-                            var primaryKeyProperties = GetPrimaryKeyProperties<T>();
-                            var foreignKeyProperties = detailType.GetProperties().Where(p =>
-                            {
-                                var foreignKeyAttribute = AttributeHelper.GetCustomAttribute<CustomAttributes.ForeignKeyAttribute>(p);
-                                return foreignKeyAttribute != null && foreignKeyAttribute.ModelType == typeof(T);
-                            }).ToList();
-
-                            // Construct the join query
-                            var joinConditions = string.Join(" AND ", foreignKeyProperties.Select(fk =>
-                            {
-                                var foreignKeyAttribute = AttributeHelper.GetCustomAttribute<CustomAttributes.ForeignKeyAttribute>(fk);
-                                return $"{detailTableName}.{fk.Name} = {_tableName}.{foreignKeyAttribute.ColumnName}";
-                            }));
-
-                            var detailSql = $@"
-SELECT * 
-FROM {detailTableName}
-JOIN {_tableName} ON {joinConditions}
-{whereSql}
-ORDER BY {orderByColumn}
-;";
-
-                            var details = (await conn.QueryAsync(detailType, detailSql, parameters)).ToList();
-                            foreach (var item in result)
-                            {
-                                var detailList = (IList)Activator.CreateInstance(typeof(List<>).MakeGenericType(detailType));
-                                var primaryKeyValue = primaryKeyProperties.First().GetValue(item);
-
-                                foreach (var detail in details)
-                                {
-                                    var foreignKeyValue = foreignKeyProperties.First().GetValue(detail);
-                                    if (primaryKeyValue.Equals(foreignKeyValue))
-                                    {
-                                        detailList.Add(detail);
-                                    }
-                                }
-                                detailProperty.SetValue(item, detailList);
-                            }
-                        }
-                    }
-
-                    response.ValidationSuccess = true;
-                    response.SuccessString = "200";
-                    response.ReturnCompleteRow = result;
-                }
-            }
-            catch (Exception ex)
-            {
-                response.ValidationSuccess = false;
-                response.SuccessString = "500";
-                response.ErrorString = ex.Message;
-            }
-
-            return response;
-        }
 
 
         public async Task<CommonResponse<object>> Import(List<T> obj, string companyCode, string user, string result)
@@ -2059,7 +1839,7 @@ ORDER BY {orderByColumn}
                                                                     !string.Equals(p.Name, "FM_COMP_CODE", StringComparison.OrdinalIgnoreCase) &&
                                                                     !string.Equals(p.Name, "TO_COMP_CODE", StringComparison.OrdinalIgnoreCase)).ToList();
 
-                if (companyCode == null)
+                if (compCodeProperties != null && companyCode == null)
                 {
                     // Query v_adm_user_locn to get all comp_code for the given user
                     var view_Query = "SELECT DISTINCT UL_COMP_CODE FROM v_adm_user_locn WHERE ul_frz_flag = 'N' AND ul_user_id = @User";

@@ -9,6 +9,7 @@ using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
 using System.Data;
 using System.Data.Common;
+using System.Linq;
 using System.Reflection;
 using System.Text.RegularExpressions;
 using static Dapper.SqlMapper;
@@ -38,6 +39,11 @@ namespace DapperAPI.Repository
 
         }
 
+        private string GetCurrentDateTime()
+        {
+            // Return the current date and time in a format compatible with both SQL Server and Oracle
+            return DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss");
+        }
         private PropertyInfo[] GetPrimaryKeyProperties<T>()
         {
             //return typeof(T).GetProperties().Where(p => Attribute.IsDefined(p, typeof(System.ComponentModel.DataAnnotations.KeyAttribute))).ToArray();
@@ -45,113 +51,365 @@ namespace DapperAPI.Repository
             return typeof(T).GetProperties()
         .Where(prop => Attribute.IsDefined(prop, typeof(PrimaryKeyAttribute)) || Attribute.IsDefined(prop, typeof(KeyAttribute))).ToArray();
         }
-        public async Task<IEnumerable<T>> GetAll(string companyCode, string user)
+        public async Task<CommonResponse<IEnumerable<T>>> GetAll(string companyCode, string user)
         {
-            //var spName= "SP_UOM";
-            using(var conn= _dbConnectionProvider.CreateConnection())
+            var response = new CommonResponse<IEnumerable<T>>();
+            using (var conn= _dbConnectionProvider.CreateConnection())
             {
-                //////var parameters = new DynamicParameters();
-                //////parameters.Add("OperationType", "SELECT",DbType.String,ParameterDirection.Input);
-                //////parameters.Add("ID",null,DbType.Int32,ParameterDirection.Input);
-                //////var getObj = await conn.QueryAsync<T>(spName, parameters, commandType: CommandType.StoredProcedure);
-                //////return getObj.ToList();
-                ///
-
+                
                 try
                 {
                     var _tableName = typeof(T).Name;
                     var sql = $"SELECT * FROM {_tableName}";
                     var results = await conn.QueryAsync<T>(sql);
-                    return results.ToList();
+                    response.ValidationSuccess = true;
+                    response.StatusCode = _appSettings.StatusCodes.Success;
+                    response.ReturnCompleteRow = results;
                 }
                 catch (Exception ex)
                 {
-                    
-                    throw;
+
+                    response.ValidationSuccess = false;
+                    response.StatusCode = _appSettings.StatusCodes.Error;
+                    response.ErrorString = ex.Message;
                 }
 
             }
+            return response;
         }
 
-        public async Task<T> GetById(object id, string companyCode, string user)
+        public async Task<CommonResponse<T>> GetById(object id, string companyCode, string user)
         {
-        //    var primaryKeyProperty = typeof(T).GetProperties()
-        //.FirstOrDefault(p => p.GetCustomAttributes(typeof(KeyAttribute), true).Length > 0);
-            var primaryKeyColumnName=typeof(T).GetProperties().FirstOrDefault(p => p.GetCustomAttributes<KeyAttribute>().Any())?.Name;
-
-
-            if (primaryKeyColumnName == null)
+            var response = new CommonResponse<T>();
+            try
             {
-                throw new InvalidOperationException("Primary key property not found.");
+                var primaryKeyColumnName = typeof(T).GetProperties()
+                    .FirstOrDefault(p => p.GetCustomAttributes<KeyAttribute>().Any())?.Name;
+
+                if (primaryKeyColumnName == null)
+                {
+                    throw new InvalidOperationException($"{_appSettings.SuccessStrings.PrimaryKeyNotFound}");
+                }
+
+                var tableName = typeof(T).Name;
+                var sql = $"SELECT * FROM {tableName} WHERE {primaryKeyColumnName} = @Id";
+
+                using (var conn = _dbConnectionProvider.CreateConnection())
+                {
+                    var result = await conn.QueryFirstOrDefaultAsync<T>(sql, new { Id = id });
+                    if (result != null)
+                    {
+                        response.ValidationSuccess = true;
+                        response.StatusCode = _appSettings.StatusCodes.Success;
+                        response.ReturnCompleteRow = result;
+                    }
+                    else
+                    {
+                        response.ValidationSuccess = false;
+                        response.StatusCode = _appSettings.StatusCodes.NotFound;
+                        response.ErrorString = _appSettings.SuccessStrings.NoData;
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                response.ValidationSuccess = false;
+                response.StatusCode = _appSettings.StatusCodes.Error;
+                response.ErrorString = ex.Message;
             }
 
-            //var primaryKeyColumnName = primaryKeyProperty.Name;
-            var tableName = typeof(T).Name;
-            var sql = $"SELECT * FROM {tableName} WHERE {primaryKeyColumnName} = @Id";
+            return response;
+        }
+
+        public async Task<CommonResponse<T>> Insert(T obj, string companyCode, string user)
+        {
+            var response = new CommonResponse<T>();
+            try
+            {
+                var sql = GenerateInsertSql(obj);
+                using (var conn = _dbConnectionProvider.CreateConnection())
+                {
+                    var rowsAffected = await conn.ExecuteAsync(sql, obj);
+                    if (rowsAffected > 0)
+                    {
+                        response.ValidationSuccess = true;
+                        response.StatusCode = _appSettings.StatusCodes.Success;
+                        response.ReturnCompleteRow = obj;
+                    }
+                    else
+                    {
+                        response.ValidationSuccess = false;
+                        response.StatusCode = _appSettings.StatusCodes.Error;
+                        response.ErrorString = _appSettings.SuccessStrings.InsertFail;
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                response.ValidationSuccess = false;
+                response.StatusCode = _appSettings.StatusCodes.Error;
+                response.ErrorString = ex.Message;
+            }
+
+            return response;
+        }
+
+        ////public async Task<int> Update(T obj, string companyCode, string user)
+        ////{
+        ////    var primaryKeyColumnName = typeof(T).GetProperties().FirstOrDefault(p => p.GetCustomAttributes<KeyAttribute>().Any())?.Name;
+
+
+        ////    if (primaryKeyColumnName == null)
+        ////    {
+        ////        throw new InvalidOperationException("Primary key property not found.");
+        ////    }
+
+        ////    //var primaryKeyColumnName = primaryKeyProperty.Name;
+        ////    var tableName = typeof(T).Name;
+        ////    var properties = GetProperties(obj);
+        ////    var updateColumns = string.Join(",", properties.Where(x => x.Name != primaryKeyColumnName).Select(x => $"{x.Name} = @{x.Name}"));
+        ////    var sql = $"UPDATE {tableName} SET {updateColumns} WHERE {primaryKeyColumnName} = @{primaryKeyColumnName}";
+        ////    var parameters = GetParameters(obj);
+        ////    using (var conn = _dbConnectionProvider.CreateConnection())
+        ////    {
+        ////        var rowsAffected = await conn.ExecuteAsync(sql, parameters);
+        ////        return rowsAffected;                
+        ////    }
+        ////}
+
+        private IEnumerable<string> GetColumnNames<T>(bool forInsert = false)
+        {
+            var properties = typeof(T).GetProperties()
+        .Where(p => !Attribute.IsDefined(p, typeof(NotMappedAttribute))); // Exclude properties marked with [NotMapped]
+
+            if (forInsert)
+            {
+                // Include all properties for INSERT, including those ending with "UPD_DT"
+                return properties.Select(p => p.Name);
+            }
+            else
+            {
+                // Exclude properties ending with "UPD_DT" for UPDATE
+                return properties.Select(p => p.Name).Where(c => !c.EndsWith("_UPD_DT"));
+            }
+        }
+        ////public async Task<int> Delete(Object id, string companyCode, string user)
+        ////{
+        ////    var primaryKeyColumnName = typeof(T).GetProperties().FirstOrDefault(p => p.GetCustomAttributes<KeyAttribute>().Any())?.Name;
+
+
+        ////    if (primaryKeyColumnName == null)
+        ////    {
+        ////        throw new InvalidOperationException("Primary key property not found.");
+        ////    }
+
+        ////    //var primaryKeyColumnName = primaryKeyProperty.Name;
+        ////    var tableName = typeof(T).Name;
+        ////    //var sql = $"SELECT * FROM {tableName} WHERE {primaryKeyColumnName} = @Id";
+
+        ////    using (var conn = _dbConnectionProvider.CreateConnection())
+        ////    {
+        ////        var sql = $"DELETE FROM {tableName} WHERE {primaryKeyColumnName} = @id";
+        ////        var rowsAffected = await conn.ExecuteAsync(sql, new { id });
+        ////        return rowsAffected;
+        ////    }
+        ////}
+
+        public async Task<CommonResponse<T>> Delete(T detail, string companyCode, string user)
+        {
+            var response = new CommonResponse<T>();
+            var detailKeyProperties = GetPrimaryKeyProperties<T>();
+            var updDtPropertyDetail = typeof(T).GetProperties().FirstOrDefault(p => p.Name.EndsWith("_UPD_DT", StringComparison.OrdinalIgnoreCase));
+            var compCodeProperty = typeof(T).GetProperties().FirstOrDefault(p => p.Name.EndsWith("_COMP_CODE", StringComparison.OrdinalIgnoreCase));
+
+            if (!detailKeyProperties.Any())
+            {
+                throw new InvalidOperationException($"{_appSettings.SuccessStrings.PrimaryKeyNotFound}");
+            }
+
+            var primaryKeyValues = detailKeyProperties.Select(p => p.GetValue(detail)?.ToString()).ToArray();
+            if (primaryKeyValues.Any(string.IsNullOrEmpty))
+            {
+                throw new InvalidOperationException($"{_appSettings.SuccessStrings.PrimaryKeyError}");
+
+            }
+
+          
+
+            // Generate the WHERE clause for the detail table
+            var detailWhereClauses = detailKeyProperties
+                .Select(p => $"{p.Name} = @{p.Name}")
+                .ToList();
+            if (compCodeProperty != null && companyCode != null)
+            {
+                detailWhereClauses.Add($"{compCodeProperty.Name} = @CompCode");
+            }
+            if (updDtPropertyDetail != null)
+            {
+                detailWhereClauses.Add($"({updDtPropertyDetail.Name} = @UpdDt OR {updDtPropertyDetail.Name} IS NULL)");
+            }
+
+            var deleteDetailSql = $@"
+DELETE FROM {_tableName}
+WHERE {string.Join(" AND ", detailWhereClauses)};
+";
 
             using (var conn = _dbConnectionProvider.CreateConnection())
             {
-                return await conn.QueryFirstOrDefaultAsync<T>(sql, new { Id = id });
+                using (var transaction = conn.BeginTransaction())
+                {
+                    try
+                    {
+                        // Flag variable to track if rows were deleted
+                        bool detailRowsDeleted = false;
+
+                        var deleteDetailParams = new DynamicParameters();
+                        foreach (var keyProp in detailKeyProperties)
+                        {
+                            var keyPropValue = keyProp.GetValue(detail)?.ToString();
+                            if (!string.IsNullOrEmpty(keyPropValue))
+                            {
+                                deleteDetailParams.Add($"@{keyProp.Name}", keyPropValue);
+                            }
+                        }
+                        deleteDetailParams.Add("@CompCode", companyCode);
+                        if (updDtPropertyDetail != null)
+                        {
+                            var updDtValue = updDtPropertyDetail.GetValue(detail);
+                            deleteDetailParams.Add("@UpdDt", updDtValue ?? DBNull.Value, dbType: DbType.Object);
+                        }
+
+                        // Delete the detail
+                        var rowsAffected = await conn.ExecuteAsync(deleteDetailSql, deleteDetailParams, transaction);
+                        if (rowsAffected == 1)
+                        {
+                            detailRowsDeleted = true;
+                        }
+                        else
+                        {
+                            throw new InvalidOperationException($"{_appSettings.SuccessStrings.DeleteNotFound}");
+                        }
+
+                        // Commit the transaction
+                        transaction.Commit();
+
+                        response.ValidationSuccess = detailRowsDeleted;
+                        response.StatusCode = _appSettings.StatusCodes.Success;
+                        response.SuccessString = _appSettings.SuccessStrings.DeleteSuccess;
+                    }
+                    catch (Exception ex)
+                    {
+                        // Rollback the transaction in case of an error
+                        transaction.Rollback();
+                        response.ValidationSuccess = false;
+                        response.StatusCode = _appSettings.StatusCodes.Error;
+                        response.ErrorString = ex.Message;
+                    }
+                }
             }
 
-
+            return response;
         }
 
-        public async Task<int> Insert(T obj, string companyCode, string user)
+        public async Task<CommonResponse<T>> Update(T detail, string companyCode, string user)
         {
-            var sql = GenerateInsertSql(obj);
-            using (var conn = _dbConnectionProvider.CreateConnection())
+            var response = new CommonResponse<T>();
+            var detailKeyProperties = GetPrimaryKeyProperties<T>();
+
+            if (!detailKeyProperties.Any())
             {
-
-                var rowsAffected = await conn.ExecuteAsync(sql, obj);
-                return rowsAffected;
-            }
-        }
-
-        public async Task<int> Update(T obj, string companyCode, string user)
-        {
-            var primaryKeyColumnName = typeof(T).GetProperties().FirstOrDefault(p => p.GetCustomAttributes<KeyAttribute>().Any())?.Name;
-
-
-            if (primaryKeyColumnName == null)
-            {
-                throw new InvalidOperationException("Primary key property not found.");
+                throw new InvalidOperationException($"{_appSettings.SuccessStrings.PrimaryKeyNotFound}");
             }
 
-            //var primaryKeyColumnName = primaryKeyProperty.Name;
-            var tableName = typeof(T).Name;
-            var properties = GetProperties(obj);
-            var updateColumns = string.Join(",", properties.Where(x => x.Name != primaryKeyColumnName).Select(x => $"{x.Name} = @{x.Name}"));
-            var sql = $"UPDATE {tableName} SET {updateColumns} WHERE {primaryKeyColumnName} = @{primaryKeyColumnName}";
-            var parameters = GetParameters(obj);
-            using (var conn = _dbConnectionProvider.CreateConnection())
+            var primaryKeyValues = detailKeyProperties.Select(p => p.GetValue(detail)?.ToString()).ToArray();
+
+            if (primaryKeyValues.Any(string.IsNullOrEmpty))
             {
-                var rowsAffected = await conn.ExecuteAsync(sql, parameters);
-                return rowsAffected;                
-            }
-        }
-
-
-        public async Task<int> Delete(Object id, string companyCode, string user)
-        {
-            var primaryKeyColumnName = typeof(T).GetProperties().FirstOrDefault(p => p.GetCustomAttributes<KeyAttribute>().Any())?.Name;
-
-
-            if (primaryKeyColumnName == null)
-            {
-                throw new InvalidOperationException("Primary key property not found.");
+                throw new InvalidOperationException($"{_appSettings.SuccessStrings.PrimaryKeyNotFound}");
             }
 
-            //var primaryKeyColumnName = primaryKeyProperty.Name;
-            var tableName = typeof(T).Name;
-            //var sql = $"SELECT * FROM {tableName} WHERE {primaryKeyColumnName} = @Id";
+            var updateDateDetailProperty = typeof(T).GetProperties().FirstOrDefault(p => p.Name.EndsWith("_UPD_DT"));
+            if (updateDateDetailProperty == null)
+            {
+                throw new InvalidOperationException($"{_appSettings.SuccessStrings.UpdateDateNotFound}");
+            }
+
+            // Get the company code property from the detail type
+            var compCodeProperty = typeof(T).GetProperties().FirstOrDefault(p => p.Name.EndsWith("_COMP_CODE", StringComparison.OrdinalIgnoreCase));
+
+            // Get the current date and time
+            var currentDateTime = GetCurrentDateTime();
+
+            var updateDetailSql = $@"
+UPDATE {_tableName}
+SET {string.Join(",", GetColumnNames<T>().Where(c => !c.EndsWith("_CR_DT") && c != detailKeyProperties.FirstOrDefault().Name).Select(c => $"{c} = @{c}"))}   
+{(updateDateDetailProperty != null ? $", {updateDateDetailProperty.Name} = '{currentDateTime}'" : "")} 
+WHERE {string.Join(" AND ", detailKeyProperties.Select(p => $"{p.Name} = @{p.Name}"))}
+{(compCodeProperty != null && companyCode != null ? $"AND {compCodeProperty.Name} = @CompCode" : "")}
+{(updateDateDetailProperty != null ? $" AND ({updateDateDetailProperty.Name} IS NULL OR {updateDateDetailProperty.Name} = @{updateDateDetailProperty.Name})" : "")};
+";
+
 
             using (var conn = _dbConnectionProvider.CreateConnection())
             {
-                var sql = $"DELETE FROM {tableName} WHERE {primaryKeyColumnName} = @id";
-                var rowsAffected = await conn.ExecuteAsync(sql, new { id });
-                return rowsAffected;
+                using (var transaction = conn.BeginTransaction())
+                {
+                    try
+                    {
+                        var parameters = new DynamicParameters(detail);
+                        if (compCodeProperty != null && companyCode != null)
+                        {
+                            parameters.Add("@CompCode", companyCode);
+                        }
+
+                        var rowsAffected = await conn.ExecuteAsync(updateDetailSql, parameters, transaction);
+
+                        if (rowsAffected != 1)
+                        {
+                            response.ValidationSuccess = false;
+                            response.SuccessString = _appSettings.StatusCodes.NotFound;
+                            response.ErrorString = _appSettings.SuccessStrings.UpdateNotFound;  //// add throw
+                            response.ReturnCompleteRow = null;
+                        }
+                        else
+                        {
+                            // Retrieve the updated row
+                            var getUpdatedRowSql = $@"
+SELECT * FROM {_tableName}
+WHERE {string.Join(" AND ", detailKeyProperties.Select(p => $"{p.Name} = @{p.Name}"))}
+{(compCodeProperty != null ? $"AND {compCodeProperty.Name} = @CompCode" : "")}
+";
+
+                            var getUpdatedRowParams = new DynamicParameters();
+                            foreach (var keyProp in detailKeyProperties)
+                            {
+                                getUpdatedRowParams.Add($"@{keyProp.Name}", keyProp.GetValue(detail));
+                            }
+                            if (compCodeProperty != null)
+                            {
+                                getUpdatedRowParams.Add("@CompCode", companyCode);
+                            }
+
+                            var updatedRow = await conn.QueryFirstOrDefaultAsync<T>(getUpdatedRowSql, getUpdatedRowParams, transaction);
+
+                            response.ValidationSuccess = true;
+                            response.SuccessString = _appSettings.StatusCodes.Success;
+                            response.ReturnCompleteRow = updatedRow;
+                        }
+
+                        transaction.Commit();
+                    }
+                    catch (Exception ex)
+                    {
+                        transaction.Rollback();
+                        response.ValidationSuccess = false;
+                        response.StatusCode = _appSettings.StatusCodes.Error;
+                        response.ErrorString = ex.Message;
+                    }
+                }
             }
+
+            return response;
         }
 
         public async Task<CommonResponse<IEnumerable<T>>> Search<T>(string jsonModel, string sortBy, int pageNo, int pageSize, string companyCode, string user, string whereClause, string showDetail)
@@ -198,7 +456,7 @@ namespace DapperAPI.Repository
                                                                     !string.Equals(p.Name, "FM_COMP_CODE", StringComparison.OrdinalIgnoreCase) &&
                                                                     !string.Equals(p.Name, "TO_COMP_CODE", StringComparison.OrdinalIgnoreCase)).ToList();
 
-                if (companyCode == null)
+                if (compCodeProperties != null && companyCode == null)
                 {
                     // Query v_adm_user_locn to get all comp_code for the given user
                     var view_Query = "SELECT DISTINCT UL_COMP_CODE FROM v_adm_user_locn WHERE ul_frz_flag = 'N' AND ul_user_id = @User";
