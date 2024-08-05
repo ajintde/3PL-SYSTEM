@@ -1,0 +1,8 @@
+2024-07-25 15:27:19.971 +04:00 [INF] Request starting HTTP/1.1 POST https://localhost:7077/api/item/InsertByModel?user=NAJAM&companyCode=009 - application/json 2541
+2024-07-25 15:27:19.986 +04:00 [INF] Executing endpoint 'DapperAPI.Controllers.ItemController.Create (DapperAPI)'
+2024-07-25 15:27:20.006 +04:00 [INF] Route matched with {action = "Create", controller = "Item"}. Executing controller action with signature System.Threading.Tasks.Task`1[Microsoft.AspNetCore.Mvc.IActionResult] Create(DapperAPI.EntityModel.OM_ITEM, System.String, System.String) on controller DapperAPI.Controllers.ItemController (DapperAPI).
+2024-07-25 15:27:20.550 +04:00 [INF] ITEM INSERT NORMAL = {"ValidationSuccess":true,"SuccessString":"200","ErrorString":null,"ReturnCompleteRow":null,"$type":"CommonResponse`1"}
+2024-07-25 15:27:20.558 +04:00 [INF] Executing OkObjectResult, writing value of type 'DapperAPI.EntityModel.CommonResponse`1[[DapperAPI.EntityModel.OM_ITEM, DapperAPI, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null]]'.
+2024-07-25 15:27:20.565 +04:00 [INF] Executed action DapperAPI.Controllers.ItemController.Create (DapperAPI) in 550.511ms
+2024-07-25 15:27:20.566 +04:00 [INF] Executed endpoint 'DapperAPI.Controllers.ItemController.Create (DapperAPI)'
+2024-07-25 15:27:20.567 +04:00 [INF] Request finished HTTP/1.1 POST https://localhost:7077/api/item/InsertByModel?user=NAJAM&companyCode=009 - 200 null application/json; charset=utf-8 595.5603ms
