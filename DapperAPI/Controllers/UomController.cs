@@ -9,8 +9,8 @@ namespace DapperAPI.Controllers
     [ApiController]
     public class UomController : ControllerBase
     {
-        private readonly IMasterRepository<OM_UOM> _uomreposotory;
-        public UomController(IMasterRepository<OM_UOM> uomrepository)
+        private readonly IOneRepository<OM_UOM> _uomreposotory;
+        public UomController(IOneRepository<OM_UOM> uomrepository)
         {
             _uomreposotory = uomrepository;
         }

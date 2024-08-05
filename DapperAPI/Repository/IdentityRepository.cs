@@ -9,7 +9,7 @@ using static DapperAPI.EntityModel.CustomAttributes;
 
 namespace DapperAPI.Repository
 {
-    public class IdentityRepository<T, TDetail> : IMasterDetailRepository<T, TDetail> where T : class where TDetail : class
+    public class IdentityRepository<T, TDetail> : ITwoRepository<T, TDetail> where T : class where TDetail : class
     {
         private readonly IDbConnectionProvider _dbConnectionProvider;
         private readonly string _tableName;

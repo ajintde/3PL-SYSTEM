@@ -27,7 +27,7 @@ using System.Text.RegularExpressions;
 
 namespace DapperAPI.Repository
 {
-    public class MasterDetailRepository<T, TDetail> : IMasterDetailRepository<T, TDetail> where T : class where TDetail : class
+    public class TwoRepository<T, TDetail> : ITwoRepository<T, TDetail> where T : class where TDetail : class
     {
         private readonly IDbConnectionProvider _dbConnectionProvider;
         private readonly string _tableName;
@@ -36,7 +36,7 @@ namespace DapperAPI.Repository
 
         private readonly AppSettings _appSettings;
 
-        public MasterDetailRepository(IDbConnectionProvider dbConnectionProvider, IOptions<AppSettings> appSettings)
+        public TwoRepository(IDbConnectionProvider dbConnectionProvider, IOptions<AppSettings> appSettings)
         {
             _dbConnectionProvider = dbConnectionProvider;
             _tableName = typeof(T).Name;

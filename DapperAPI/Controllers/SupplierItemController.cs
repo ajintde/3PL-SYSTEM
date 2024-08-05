@@ -18,9 +18,9 @@ namespace DapperAPI.Controllers
 
     public class SupplierItemController : ControllerBase
     {
-        private readonly IMasterRepository<OM_SUPP_ITEM> _suppItemReposotory;
+        private readonly IOneRepository<OM_SUPP_ITEM> _suppItemReposotory;
         private readonly IUserValidationService _userValidationService;
-        public SupplierItemController(IMasterRepository<OM_SUPP_ITEM> suppitemrepository, IUserValidationService userValidationService)
+        public SupplierItemController(IOneRepository<OM_SUPP_ITEM> suppitemrepository, IUserValidationService userValidationService)
         {
             _suppItemReposotory = suppitemrepository;
             _userValidationService = userValidationService;

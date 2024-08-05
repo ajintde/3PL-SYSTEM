@@ -18,9 +18,9 @@ namespace DapperAPI.Controllers
 
     public class ItemGroupController : ControllerBase
     {
-        private readonly IMasterRepository<OM_ITEM_GROUP> _itemGroupReposotory;
+        private readonly IOneRepository<OM_ITEM_GROUP> _itemGroupReposotory;
         private readonly IUserValidationService _userValidationService;
-        public ItemGroupController(IMasterRepository<OM_ITEM_GROUP> itemgrouprepository, IUserValidationService userValidationService)
+        public ItemGroupController(IOneRepository<OM_ITEM_GROUP> itemgrouprepository, IUserValidationService userValidationService)
         {
             _itemGroupReposotory = itemgrouprepository;
             _userValidationService = userValidationService;

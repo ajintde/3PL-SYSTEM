@@ -4,7 +4,7 @@ using static System.Net.WebRequestMethods;
 
 namespace DapperAPI.Interface
 {
-    public interface IMasterRepository<T> where T : class
+    public interface IOneRepository<T> where T : class
     {
        Task<IEnumerable<T>> GetAll(string companyCode, string user);
         Task<T> GetById(object id, string companyCode, string user);

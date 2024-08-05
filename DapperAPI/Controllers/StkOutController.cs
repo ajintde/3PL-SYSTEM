@@ -10,10 +10,10 @@ namespace DapperAPI.Controllers
     [ApiController]
     public class StkOutController : ControllerBase
     {
-        private readonly IMasterDetailRepository<WT_STK_OUT_HEAD, WT_STK_OUT_ITEM> _stkOutRepositor;
+        private readonly ITwoRepository<WT_STK_OUT_HEAD, WT_STK_OUT_ITEM> _stkOutRepositor;
         private readonly IUserValidationService _userValidationService;
 
-        public StkOutController(IMasterDetailRepository<WT_STK_OUT_HEAD, WT_STK_OUT_ITEM> stkOutRepositor, IUserValidationService userValidationService)
+        public StkOutController(ITwoRepository<WT_STK_OUT_HEAD, WT_STK_OUT_ITEM> stkOutRepositor, IUserValidationService userValidationService)
         {
             _stkOutRepositor = stkOutRepositor;
             _userValidationService = userValidationService;

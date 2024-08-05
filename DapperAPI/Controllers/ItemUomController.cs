@@ -10,10 +10,10 @@ namespace DapperAPI.Controllers
     [ApiController]
     public class ItemUomController : ControllerBase
     {
-        private readonly IMasterDetailRepository<OM_ITEM, OM_ITEM_UOM> _itemUomRepositor;
+        private readonly ITwoRepository<OM_ITEM, OM_ITEM_UOM> _itemUomRepositor;
         private readonly IUserValidationService _userValidationService;
 
-        public ItemUomController(IMasterDetailRepository<OM_ITEM, OM_ITEM_UOM> itemUomRepositor, IUserValidationService userValidationService)
+        public ItemUomController(ITwoRepository<OM_ITEM, OM_ITEM_UOM> itemUomRepositor, IUserValidationService userValidationService)
         {
             _itemUomRepositor = itemUomRepositor;
             _userValidationService = userValidationService;

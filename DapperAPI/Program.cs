@@ -43,11 +43,11 @@ builder.Services.Configure<SqlConnectionSetting>(builder.Configuration.GetSectio
 builder.Services.AddControllers();
 // Learn more about configuring Swagger/OpenAPI at https://aka.ms/aspnetcore/swashbuckle
 builder.Services.AddEndpointsApiExplorer();
-builder.Services.AddScoped(typeof(IMasterRepository<>), typeof(MasterRepository<>));
-builder.Services.AddScoped(typeof(IMasterDetailRepository<OM_ITEM,OM_ITEM_UOM>), typeof(MasterDetailRepository<OM_ITEM,OM_ITEM_UOM>));
-builder.Services.AddScoped(typeof(IMasterDetailRepository<WT_STK_OUT_HEAD, WT_STK_OUT_ITEM>), typeof(MasterDetailRepository<WT_STK_OUT_HEAD, WT_STK_OUT_ITEM>));
-builder.Services.AddScoped(typeof(IMasterDetailRepository<WT_STK_OUT_ITEM, WT_STK_OUT_ITEM>), typeof(MasterDetailRepository<WT_STK_OUT_ITEM, WT_STK_OUT_ITEM>));
-builder.Services.AddScoped(typeof(IMasterDetailRepository<OM_ITEM_UOM, OM_ITEM_UOM>), typeof(MasterDetailRepository<OM_ITEM_UOM, OM_ITEM_UOM>));
+builder.Services.AddScoped(typeof(IOneRepository<>), typeof(OneRepository<>));
+builder.Services.AddScoped(typeof(ITwoRepository<OM_ITEM,OM_ITEM_UOM>), typeof(TwoRepository<OM_ITEM,OM_ITEM_UOM>));
+builder.Services.AddScoped(typeof(ITwoRepository<WT_STK_OUT_HEAD, WT_STK_OUT_ITEM>), typeof(TwoRepository<WT_STK_OUT_HEAD, WT_STK_OUT_ITEM>));
+builder.Services.AddScoped(typeof(ITwoRepository<WT_STK_OUT_ITEM, WT_STK_OUT_ITEM>), typeof(TwoRepository<WT_STK_OUT_ITEM, WT_STK_OUT_ITEM>));
+builder.Services.AddScoped(typeof(ITwoRepository<OM_ITEM_UOM, OM_ITEM_UOM>), typeof(TwoRepository<OM_ITEM_UOM, OM_ITEM_UOM>));
 builder.Services.AddScoped<IDbConnectionProvider, DbConnectionProvider>();
 builder.Services.AddScoped<IUserValidationService, UserValidationService>();
 

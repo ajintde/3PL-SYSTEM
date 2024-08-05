@@ -16,7 +16,7 @@ using static DapperAPI.EntityModel.CustomAttributes;
 
 namespace DapperAPI.Repository
 {
-    public class MasterRepository<T> : IMasterRepository<T> where T : class
+    public class OneRepository<T> : IOneRepository<T> where T : class
     {
         private readonly IDbConnectionProvider _dbConnectionProvider;
         //private readonly string _spName;
@@ -27,7 +27,7 @@ namespace DapperAPI.Repository
 
 
 
-        public MasterRepository(IDbConnectionProvider dbConnectionProvider, IOptions<AppSettings> appSettings) 
+        public OneRepository(IDbConnectionProvider dbConnectionProvider, IOptions<AppSettings> appSettings) 
         {
             _dbConnectionProvider = dbConnectionProvider;
             var obj= BaseEntity.CreateEmptyInstances<T>();

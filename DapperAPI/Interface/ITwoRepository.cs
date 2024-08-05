@@ -3,7 +3,7 @@ using System.Linq.Expressions;
 
 namespace DapperAPI.Interface
 {
-    public interface IMasterDetailRepository<T, TDetail> where T : class where TDetail : class
+    public interface ITwoRepository<T, TDetail> where T : class where TDetail : class
     {
         //Task<T> GetAll(T obj);
 

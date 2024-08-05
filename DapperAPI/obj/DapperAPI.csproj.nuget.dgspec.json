@@ -1,20 +1,24 @@
 {
   "format": 1,
   "restore": {
-    "C:\\3PL\\3PL-SYSTEM\\DapperAPI\\DapperAPI.csproj": {}
+    "C:\\Users\\anandu\\source\\repos\\3PL-SYSTEM\\DapperAPI\\DapperAPI.csproj": {}
   },
   "projects": {
-    "C:\\3PL\\3PL-SYSTEM\\DapperAPI\\DapperAPI.csproj": {
+    "C:\\Users\\anandu\\source\\repos\\3PL-SYSTEM\\DapperAPI\\DapperAPI.csproj": {
       "version": "1.0.0",
       "restore": {
-        "projectUniqueName": "C:\\3PL\\3PL-SYSTEM\\DapperAPI\\DapperAPI.csproj",
+        "projectUniqueName": "C:\\Users\\anandu\\source\\repos\\3PL-SYSTEM\\DapperAPI\\DapperAPI.csproj",
         "projectName": "DapperAPI",
-        "projectPath": "C:\\3PL\\3PL-SYSTEM\\DapperAPI\\DapperAPI.csproj",
-        "packagesPath": "C:\\Users\\aji\\.nuget\\packages\\",
-        "outputPath": "C:\\3PL\\3PL-SYSTEM\\DapperAPI\\obj\\",
+        "projectPath": "C:\\Users\\anandu\\source\\repos\\3PL-SYSTEM\\DapperAPI\\DapperAPI.csproj",
+        "packagesPath": "C:\\Users\\anandu\\.nuget\\packages\\",
+        "outputPath": "C:\\Users\\anandu\\source\\repos\\3PL-SYSTEM\\DapperAPI\\obj\\",
         "projectStyle": "PackageReference",
+        "fallbackFolders": [
+          "C:\\Program Files (x86)\\Microsoft Visual Studio\\Shared\\NuGetPackages"
+        ],
         "configFilePaths": [
-          "C:\\Users\\aji\\AppData\\Roaming\\NuGet\\NuGet.Config",
+          "C:\\Users\\anandu\\AppData\\Roaming\\NuGet\\NuGet.Config",
+          "C:\\Program Files (x86)\\NuGet\\Config\\Microsoft.VisualStudio.FallbackLocation.config",
           "C:\\Program Files (x86)\\NuGet\\Config\\Microsoft.VisualStudio.Offline.config"
         ],
         "originalTargetFrameworks": [
@@ -23,6 +27,7 @@
         "sources": {
           "C:\\Program Files (x86)\\Microsoft SDKs\\NuGetPackages\\": {},
           "C:\\Program Files\\dotnet\\library-packs": {},
+          "C:\\Users\\Public\\Documents\\Infragistics\\NuGet\\": {},
           "https://api.nuget.org/v3/index.json": {}
         },
         "frameworks": {
@@ -130,7 +135,7 @@
               "privateAssets": "all"
             }
           },
-          "runtimeIdentifierGraphPath": "C:\\Program Files\\dotnet\\sdk\\8.0.303/PortableRuntimeIdentifierGraph.json"
+          "runtimeIdentifierGraphPath": "C:\\Program Files\\dotnet\\sdk\\8.0.204/PortableRuntimeIdentifierGraph.json"
         }
       }
     }
