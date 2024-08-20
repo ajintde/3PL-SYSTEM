@@ -331,3 +331,10 @@ C:\Users\anandu\Source\Repos\3PL-SYSTEM\DapperAPI\obj\Debug\net8.0\refint\Dapper
 C:\Users\anandu\Source\Repos\3PL-SYSTEM\DapperAPI\obj\Debug\net8.0\DapperAPI.pdb
 C:\Users\anandu\Source\Repos\3PL-SYSTEM\DapperAPI\obj\Debug\net8.0\DapperAPI.genruntimeconfig.cache
 C:\Users\anandu\Source\Repos\3PL-SYSTEM\DapperAPI\obj\Debug\net8.0\ref\DapperAPI.dll
+C:\Users\anandu\source\repos\3PL-SYSTEM\DapperAPI\bin\Debug\net8.0\Oracle.ManagedDataAccess.dll
+C:\Users\anandu\source\repos\3PL-SYSTEM\DapperAPI\bin\Debug\net8.0\System.Diagnostics.PerformanceCounter.dll
+C:\Users\anandu\source\repos\3PL-SYSTEM\DapperAPI\bin\Debug\net8.0\System.DirectoryServices.Protocols.dll
+C:\Users\anandu\source\repos\3PL-SYSTEM\DapperAPI\bin\Debug\net8.0\runtimes\win\lib\net8.0\System.Diagnostics.PerformanceCounter.dll
+C:\Users\anandu\source\repos\3PL-SYSTEM\DapperAPI\bin\Debug\net8.0\runtimes\linux\lib\net8.0\System.DirectoryServices.Protocols.dll
+C:\Users\anandu\source\repos\3PL-SYSTEM\DapperAPI\bin\Debug\net8.0\runtimes\osx\lib\net8.0\System.DirectoryServices.Protocols.dll
+C:\Users\anandu\source\repos\3PL-SYSTEM\DapperAPI\bin\Debug\net8.0\runtimes\win\lib\net8.0\System.DirectoryServices.Protocols.dll

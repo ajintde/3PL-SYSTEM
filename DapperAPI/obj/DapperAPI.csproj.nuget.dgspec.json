@@ -87,6 +87,10 @@
               "target": "Package",
               "version": "[13.0.3, )"
             },
+            "Oracle.ManagedDataAccess.Core": {
+              "target": "Package",
+              "version": "[23.5.0, )"
+            },
             "Serilog": {
               "target": "Package",
               "version": "[4.0.0, )"
