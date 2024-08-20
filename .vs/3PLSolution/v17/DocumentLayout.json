@@ -7,24 +7,40 @@
       "RelativeMoniker": "D:0:0:{8A745C85-212F-4F92-99B5-B2B1271EDA05}|DapperAPI\\DapperAPI.csproj|solutionrelative:dapperapi\\repository\\tworepository.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
     },
     {
+      "AbsoluteMoniker": "D:0:0:{8A745C85-212F-4F92-99B5-B2B1271EDA05}|DapperAPI\\DapperAPI.csproj|c:\\users\\anandu\\source\\repos\\3pl-system\\dapperapi\\entitymodel\\om_item_uom.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "RelativeMoniker": "D:0:0:{8A745C85-212F-4F92-99B5-B2B1271EDA05}|DapperAPI\\DapperAPI.csproj|solutionrelative:dapperapi\\entitymodel\\om_item_uom.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{8A745C85-212F-4F92-99B5-B2B1271EDA05}|DapperAPI\\DapperAPI.csproj|c:\\users\\anandu\\source\\repos\\3pl-system\\dapperapi\\services\\globalexceptionhandler.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "RelativeMoniker": "D:0:0:{8A745C85-212F-4F92-99B5-B2B1271EDA05}|DapperAPI\\DapperAPI.csproj|solutionrelative:dapperapi\\services\\globalexceptionhandler.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{8A745C85-212F-4F92-99B5-B2B1271EDA05}|DapperAPI\\DapperAPI.csproj|c:\\users\\anandu\\source\\repos\\3pl-system\\dapperapi\\controllers\\itemuomcontroller.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "RelativeMoniker": "D:0:0:{8A745C85-212F-4F92-99B5-B2B1271EDA05}|DapperAPI\\DapperAPI.csproj|solutionrelative:dapperapi\\controllers\\itemuomcontroller.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+    },
+    {
       "AbsoluteMoniker": "D:0:0:{8A745C85-212F-4F92-99B5-B2B1271EDA05}|DapperAPI\\DapperAPI.csproj|c:\\users\\anandu\\source\\repos\\3pl-system\\dapperapi\\repository\\onerepository.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
       "RelativeMoniker": "D:0:0:{8A745C85-212F-4F92-99B5-B2B1271EDA05}|DapperAPI\\DapperAPI.csproj|solutionrelative:dapperapi\\repository\\onerepository.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
     },
     {
-      "AbsoluteMoniker": "D:0:0:{8A745C85-212F-4F92-99B5-B2B1271EDA05}|DapperAPI\\DapperAPI.csproj|c:\\users\\anandu\\source\\repos\\3pl-system\\dapperapi\\interface\\itworepository.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
-      "RelativeMoniker": "D:0:0:{8A745C85-212F-4F92-99B5-B2B1271EDA05}|DapperAPI\\DapperAPI.csproj|solutionrelative:dapperapi\\interface\\itworepository.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+      "AbsoluteMoniker": "D:0:0:{8A745C85-212F-4F92-99B5-B2B1271EDA05}|DapperAPI\\DapperAPI.csproj|c:\\users\\anandu\\source\\repos\\3pl-system\\dapperapi\\controllers\\itemcontroller.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "RelativeMoniker": "D:0:0:{8A745C85-212F-4F92-99B5-B2B1271EDA05}|DapperAPI\\DapperAPI.csproj|solutionrelative:dapperapi\\controllers\\itemcontroller.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
     },
     {
-      "AbsoluteMoniker": "D:0:0:{8A745C85-212F-4F92-99B5-B2B1271EDA05}|DapperAPI\\DapperAPI.csproj|c:\\users\\anandu\\source\\repos\\3pl-system\\dapperapi\\setting\\appsettings.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
-      "RelativeMoniker": "D:0:0:{8A745C85-212F-4F92-99B5-B2B1271EDA05}|DapperAPI\\DapperAPI.csproj|solutionrelative:dapperapi\\setting\\appsettings.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+      "AbsoluteMoniker": "D:0:0:{8A745C85-212F-4F92-99B5-B2B1271EDA05}|DapperAPI\\DapperAPI.csproj|c:\\users\\anandu\\source\\repos\\3pl-system\\dapperapi\\entitymodel\\om_item.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "RelativeMoniker": "D:0:0:{8A745C85-212F-4F92-99B5-B2B1271EDA05}|DapperAPI\\DapperAPI.csproj|solutionrelative:dapperapi\\entitymodel\\om_item.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
     },
     {
-      "AbsoluteMoniker": "D:0:0:{8A745C85-212F-4F92-99B5-B2B1271EDA05}|DapperAPI\\DapperAPI.csproj|c:\\users\\anandu\\source\\repos\\3pl-system\\dapperapi\\appsettings.json||{90A6B3A7-C1A3-4009-A288-E2FF89E96FA0}",
-      "RelativeMoniker": "D:0:0:{8A745C85-212F-4F92-99B5-B2B1271EDA05}|DapperAPI\\DapperAPI.csproj|solutionrelative:dapperapi\\appsettings.json||{90A6B3A7-C1A3-4009-A288-E2FF89E96FA0}"
+      "AbsoluteMoniker": "D:0:0:{8A745C85-212F-4F92-99B5-B2B1271EDA05}|DapperAPI\\DapperAPI.csproj|c:\\users\\anandu\\source\\repos\\3pl-system\\dapperapi\\controllers\\uomcontroller.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "RelativeMoniker": "D:0:0:{8A745C85-212F-4F92-99B5-B2B1271EDA05}|DapperAPI\\DapperAPI.csproj|solutionrelative:dapperapi\\controllers\\uomcontroller.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
     },
     {
-      "AbsoluteMoniker": "D:0:0:{8A745C85-212F-4F92-99B5-B2B1271EDA05}|DapperAPI\\DapperAPI.csproj|c:\\users\\anandu\\source\\repos\\3pl-system\\dapperapi\\interface\\ionerepository.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
-      "RelativeMoniker": "D:0:0:{8A745C85-212F-4F92-99B5-B2B1271EDA05}|DapperAPI\\DapperAPI.csproj|solutionrelative:dapperapi\\interface\\ionerepository.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+      "AbsoluteMoniker": "D:0:0:{8A745C85-212F-4F92-99B5-B2B1271EDA05}|DapperAPI\\DapperAPI.csproj|c:\\users\\anandu\\source\\repos\\3pl-system\\dapperapi\\entitymodel\\om_uom.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "RelativeMoniker": "D:0:0:{8A745C85-212F-4F92-99B5-B2B1271EDA05}|DapperAPI\\DapperAPI.csproj|solutionrelative:dapperapi\\entitymodel\\om_uom.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{8A745C85-212F-4F92-99B5-B2B1271EDA05}|DapperAPI\\DapperAPI.csproj|c:\\users\\anandu\\source\\repos\\3pl-system\\dapperapi\\interface\\idbconnectionprovider.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "RelativeMoniker": "D:0:0:{8A745C85-212F-4F92-99B5-B2B1271EDA05}|DapperAPI\\DapperAPI.csproj|solutionrelative:dapperapi\\interface\\idbconnectionprovider.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
     }
   ],
   "DocumentGroupContainers": [
@@ -34,59 +50,113 @@
       "DocumentGroups": [
         {
           "DockedWidth": 200,
-          "SelectedChildIndex": 4,
+          "SelectedChildIndex": 9,
           "Children": [
             {
+              "$type": "Bookmark",
+              "Name": "ST:254354193:0:{71f361cc-493f-47c0-923f-f2570b6f8618}"
+            },
+            {
               "$type": "Document",
-              "DocumentIndex": 2,
-              "Title": "ITwoRepository.cs",
-              "DocumentMoniker": "C:\\Users\\anandu\\source\\repos\\3PL-SYSTEM\\DapperAPI\\Interface\\ITwoRepository.cs",
-              "RelativeDocumentMoniker": "DapperAPI\\Interface\\ITwoRepository.cs",
-              "ToolTip": "C:\\Users\\anandu\\source\\repos\\3PL-SYSTEM\\DapperAPI\\Interface\\ITwoRepository.cs",
-              "RelativeToolTip": "DapperAPI\\Interface\\ITwoRepository.cs",
-              "ViewState": "AQIAAAAAAAAAAAAAAAAAAAoAAAAOAAAA",
+              "DocumentIndex": 1,
+              "Title": "OM_ITEM_UOM.cs",
+              "DocumentMoniker": "C:\\Users\\anandu\\source\\repos\\3PL-SYSTEM\\DapperAPI\\EntityModel\\OM_ITEM_UOM.cs",
+              "RelativeDocumentMoniker": "DapperAPI\\EntityModel\\OM_ITEM_UOM.cs",
+              "ToolTip": "C:\\Users\\anandu\\source\\repos\\3PL-SYSTEM\\DapperAPI\\EntityModel\\OM_ITEM_UOM.cs",
+              "RelativeToolTip": "DapperAPI\\EntityModel\\OM_ITEM_UOM.cs",
+              "ViewState": "AQIAAEkAAAAAAAAAAAAUwFcAAAAIAAAA",
               "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
-              "WhenOpened": "2024-08-05T11:24:47.388Z",
+              "WhenOpened": "2024-08-19T11:24:37.37Z",
+              "EditorCaption": ""
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 8,
+              "Title": "OM_UOM.cs",
+              "DocumentMoniker": "C:\\Users\\anandu\\source\\repos\\3PL-SYSTEM\\DapperAPI\\EntityModel\\OM_UOM.cs",
+              "RelativeDocumentMoniker": "DapperAPI\\EntityModel\\OM_UOM.cs",
+              "ToolTip": "C:\\Users\\anandu\\source\\repos\\3PL-SYSTEM\\DapperAPI\\EntityModel\\OM_UOM.cs",
+              "RelativeToolTip": "DapperAPI\\EntityModel\\OM_UOM.cs",
+              "ViewState": "AQIAAAAAAAAAAAAAAAAAAA8AAAAhAAAA",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2024-08-13T11:08:03.543Z"
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 6,
+              "Title": "OM_ITEM.cs",
+              "DocumentMoniker": "C:\\Users\\anandu\\source\\repos\\3PL-SYSTEM\\DapperAPI\\EntityModel\\OM_ITEM.cs",
+              "RelativeDocumentMoniker": "DapperAPI\\EntityModel\\OM_ITEM.cs",
+              "ToolTip": "C:\\Users\\anandu\\source\\repos\\3PL-SYSTEM\\DapperAPI\\EntityModel\\OM_ITEM.cs",
+              "RelativeToolTip": "DapperAPI\\EntityModel\\OM_ITEM.cs",
+              "ViewState": "AQIAAAAAAAAAAAAAAAAAABEAAAAiAAAA",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2024-08-13T11:04:58.153Z",
               "EditorCaption": ""
             },
             {
               "$type": "Document",
               "DocumentIndex": 3,
-              "Title": "AppSettings.cs",
-              "DocumentMoniker": "C:\\Users\\anandu\\source\\repos\\3PL-SYSTEM\\DapperAPI\\Setting\\AppSettings.cs",
-              "RelativeDocumentMoniker": "DapperAPI\\Setting\\AppSettings.cs",
-              "ToolTip": "C:\\Users\\anandu\\source\\repos\\3PL-SYSTEM\\DapperAPI\\Setting\\AppSettings.cs",
-              "RelativeToolTip": "DapperAPI\\Setting\\AppSettings.cs",
-              "ViewState": "AQIAAAwAAAAAAAAAAAA4wBwAAAAkAAAA",
+              "Title": "ItemUomController.cs",
+              "DocumentMoniker": "C:\\Users\\anandu\\source\\repos\\3PL-SYSTEM\\DapperAPI\\Controllers\\ItemUomController.cs",
+              "RelativeDocumentMoniker": "DapperAPI\\Controllers\\ItemUomController.cs",
+              "ToolTip": "C:\\Users\\anandu\\source\\repos\\3PL-SYSTEM\\DapperAPI\\Controllers\\ItemUomController.cs",
+              "RelativeToolTip": "DapperAPI\\Controllers\\ItemUomController.cs",
+              "ViewState": "AQIAAAsAAAAAAAAAAAAYwEYAAAAIAAAA",
               "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
-              "WhenOpened": "2024-08-05T11:06:24.349Z",
+              "WhenOpened": "2024-08-13T10:27:36.756Z",
+              "EditorCaption": ""
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 7,
+              "Title": "UomController.cs",
+              "DocumentMoniker": "C:\\Users\\anandu\\source\\repos\\3PL-SYSTEM\\DapperAPI\\Controllers\\UomController.cs",
+              "RelativeDocumentMoniker": "DapperAPI\\Controllers\\UomController.cs",
+              "ToolTip": "C:\\Users\\anandu\\source\\repos\\3PL-SYSTEM\\DapperAPI\\Controllers\\UomController.cs",
+              "RelativeToolTip": "DapperAPI\\Controllers\\UomController.cs",
+              "ViewState": "AQIAADwAAAAAAAAAAAAuwNYAAABRAAAA",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2024-08-12T05:22:21.404Z",
               "EditorCaption": ""
             },
             {
               "$type": "Document",
               "DocumentIndex": 5,
-              "Title": "IOneRepository.cs",
-              "DocumentMoniker": "C:\\Users\\anandu\\source\\repos\\3PL-SYSTEM\\DapperAPI\\Interface\\IOneRepository.cs",
-              "RelativeDocumentMoniker": "DapperAPI\\Interface\\IOneRepository.cs",
-              "ToolTip": "C:\\Users\\anandu\\source\\repos\\3PL-SYSTEM\\DapperAPI\\Interface\\IOneRepository.cs",
-              "RelativeToolTip": "DapperAPI\\Interface\\IOneRepository.cs",
-              "ViewState": "AQIAAAAAAAAAAAAAAAAAAAoAAAAeAAAA",
+              "Title": "ItemController.cs",
+              "DocumentMoniker": "C:\\Users\\anandu\\source\\repos\\3PL-SYSTEM\\DapperAPI\\Controllers\\ItemController.cs",
+              "RelativeDocumentMoniker": "DapperAPI\\Controllers\\ItemController.cs",
+              "ToolTip": "C:\\Users\\anandu\\source\\repos\\3PL-SYSTEM\\DapperAPI\\Controllers\\ItemController.cs",
+              "RelativeToolTip": "DapperAPI\\Controllers\\ItemController.cs",
+              "ViewState": "AQIAAC4AAAAAAAAAAAAgwNkAAABRAAAA",
               "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
-              "WhenOpened": "2024-08-05T11:01:17.069Z",
+              "WhenOpened": "2024-08-08T12:20:50.976Z",
               "EditorCaption": ""
             },
             {
               "$type": "Document",
               "DocumentIndex": 4,
-              "Title": "appsettings.json",
-              "DocumentMoniker": "C:\\Users\\anandu\\source\\repos\\3PL-SYSTEM\\DapperAPI\\appsettings.json",
-              "RelativeDocumentMoniker": "DapperAPI\\appsettings.json",
-              "ToolTip": "C:\\Users\\anandu\\source\\repos\\3PL-SYSTEM\\DapperAPI\\appsettings.json",
-              "RelativeToolTip": "DapperAPI\\appsettings.json",
-              "ViewState": "AQIAAB4AAAAAAAAAAAAAADIAAAATAAAA",
-              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.001642|",
-              "WhenOpened": "2024-08-05T10:47:24.489Z",
+              "Title": "OneRepository.cs",
+              "DocumentMoniker": "C:\\Users\\anandu\\source\\repos\\3PL-SYSTEM\\DapperAPI\\Repository\\OneRepository.cs",
+              "RelativeDocumentMoniker": "DapperAPI\\Repository\\OneRepository.cs",
+              "ToolTip": "C:\\Users\\anandu\\source\\repos\\3PL-SYSTEM\\DapperAPI\\Repository\\OneRepository.cs",
+              "RelativeToolTip": "DapperAPI\\Repository\\OneRepository.cs",
+              "ViewState": "AQIAAGYBAAAAAAAAAAArwIMBAAANAAAA",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2024-08-07T10:56:57.619Z",
               "EditorCaption": ""
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 9,
+              "Title": "IDbConnectionProvider.cs",
+              "DocumentMoniker": "C:\\Users\\anandu\\source\\repos\\3PL-SYSTEM\\DapperAPI\\Interface\\IDbConnectionProvider.cs",
+              "RelativeDocumentMoniker": "DapperAPI\\Interface\\IDbConnectionProvider.cs",
+              "ToolTip": "C:\\Users\\anandu\\source\\repos\\3PL-SYSTEM\\DapperAPI\\Interface\\IDbConnectionProvider.cs",
+              "RelativeToolTip": "DapperAPI\\Interface\\IDbConnectionProvider.cs",
+              "ViewState": "AQIAAAAAAAAAAAAAAAAAAAQAAAAqAAAA",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2024-08-08T11:17:52.366Z"
             },
             {
               "$type": "Document",
@@ -96,22 +166,22 @@
               "RelativeDocumentMoniker": "DapperAPI\\Repository\\TwoRepository.cs",
               "ToolTip": "C:\\Users\\anandu\\source\\repos\\3PL-SYSTEM\\DapperAPI\\Repository\\TwoRepository.cs",
               "RelativeToolTip": "DapperAPI\\Repository\\TwoRepository.cs",
-              "ViewState": "AQIAAEQAAAAAAAAAAAAuwIQBAABwAAAA",
+              "ViewState": "AQIAAIkEAAAAAAAAAAAAAKIEAAAAAAAA",
               "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
-              "WhenOpened": "2024-08-05T10:25:16.025Z",
+              "WhenOpened": "2024-08-06T11:32:51.255Z",
               "EditorCaption": ""
             },
             {
               "$type": "Document",
-              "DocumentIndex": 1,
-              "Title": "OneRepository.cs",
-              "DocumentMoniker": "C:\\Users\\anandu\\source\\repos\\3PL-SYSTEM\\DapperAPI\\Repository\\OneRepository.cs",
-              "RelativeDocumentMoniker": "DapperAPI\\Repository\\OneRepository.cs",
-              "ToolTip": "C:\\Users\\anandu\\source\\repos\\3PL-SYSTEM\\DapperAPI\\Repository\\OneRepository.cs",
-              "RelativeToolTip": "DapperAPI\\Repository\\OneRepository.cs",
-              "ViewState": "AQIAACkAAAAAAAAAAAAzwFAAAABgAAAA",
+              "DocumentIndex": 2,
+              "Title": "GlobalExceptionHandler.cs",
+              "DocumentMoniker": "C:\\Users\\anandu\\source\\repos\\3PL-SYSTEM\\DapperAPI\\Services\\GlobalExceptionHandler.cs",
+              "RelativeDocumentMoniker": "DapperAPI\\Services\\GlobalExceptionHandler.cs",
+              "ToolTip": "C:\\Users\\anandu\\source\\repos\\3PL-SYSTEM\\DapperAPI\\Services\\GlobalExceptionHandler.cs",
+              "RelativeToolTip": "DapperAPI\\Services\\GlobalExceptionHandler.cs",
+              "ViewState": "AQIAAAwAAAAAAAAAAIA1wDcAAAAIAAAA",
               "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
-              "WhenOpened": "2024-08-05T10:25:15.075Z",
+              "WhenOpened": "2024-08-14T05:07:23.131Z",
               "EditorCaption": ""
             }
           ]
