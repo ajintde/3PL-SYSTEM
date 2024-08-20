@@ -234,5 +234,10 @@ VALUES ({string.Join(",", insertDetailValues)});
         {
             throw new NotImplementedException();
         }
+
+        public Task<CommonResponse<int>> SearchCount(string jsonModel, string companyCode, string user, string whereClause)
+        {
+            throw new NotImplementedException();
+        }
     }
 }

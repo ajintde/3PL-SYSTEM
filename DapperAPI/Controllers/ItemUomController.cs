@@ -42,15 +42,17 @@ namespace DapperAPI.Controllers
             return true;
         }
 
-        
-
-        [HttpDelete]
-        [Route("DeleteDetailByModel")]
-        public async Task<IActionResult> DeleteDetailByModel([FromBody] OM_ITEM_UOM item, string companyCode, string user)
+        [HttpPost("InsertDetailByModel")]
+        public async Task<IActionResult> Create([FromBody] OM_ITEM_UOM detail, string companyCode, string user)
         {
             if (!await ValidateUserAndCompany(user, companyCode))
             {
                 return Unauthorized("User validation failed.");
+            }
+
+            if (detail == null)
+            {
+                return BadRequest("Item is null.");
             }
 
             var userType = await _userValidationService.GetUserTypeAsync(user);
@@ -59,8 +61,8 @@ namespace DapperAPI.Controllers
             {
                 companyCodeToUse = null;
             }
-
-            var response = await _itemUomRepositor.DeleteDetail(item, companyCodeToUse, user);
+            var response = await _itemUomRepositor.InsertDetail(detail, companyCodeToUse, user);
+            Log.Information("ITEM INSERT NORMAL = {@result}", response);
             return Ok(response);
         }
 
@@ -86,23 +88,29 @@ namespace DapperAPI.Controllers
             return BadRequest(response);
         }
 
-        [HttpPost("InsertDetailByModel")]
-        public async Task<IActionResult> Create([FromBody] OM_ITEM_UOM detail, string companyCode, string user)
+        [HttpDelete]
+        [Route("DeleteDetailByModel")]
+        public async Task<IActionResult> DeleteDetailByModel([FromBody] OM_ITEM_UOM item, string companyCode, string user)
         {
             if (!await ValidateUserAndCompany(user, companyCode))
             {
                 return Unauthorized("User validation failed.");
             }
 
-            if (detail == null)
+            var userType = await _userValidationService.GetUserTypeAsync(user);
+            string companyCodeToUse = companyCode;
+            if (userType == "OPERATOR" && companyCode == "ALL")
             {
-                return BadRequest("Item is null.");
+                companyCodeToUse = null;
             }
 
-            var response = await _itemUomRepositor.InsertDetail(detail, companyCode, user);
-            Log.Information("ITEM INSERT NORMAL = {@result}", response);
+            var response = await _itemUomRepositor.DeleteDetail(item, companyCodeToUse, user);
             return Ok(response);
         }
+
+        
+
+       
 
         
 

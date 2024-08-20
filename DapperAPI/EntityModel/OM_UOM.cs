@@ -2,15 +2,16 @@
 
 
 
+using ServiceStack.DataAnnotations;
 using System.ComponentModel;
 using System.ComponentModel.DataAnnotations;
 
 namespace DapperAPI.EntityModel
 {
     
-    public class OM_UOM
+    public class OM_UOM:CustomAttributes
     {
-        
+        [PrimaryKey]
         [Key]
         public string UOM_CODE { get; set; }
         public string UOM_NAME { get; set; }
@@ -21,8 +22,8 @@ namespace DapperAPI.EntityModel
         public DateTime UOM_CR_DT {  get; set; }
         [DefaultValue("API")]
         public string UOM_CR_UID { get; set; }
-        public DateTime? UOM_MOD_DT { get; set; }
-        public string? UOM_MOD_UID { get; set; }
+        public DateTime? UOM_UPD_DT { get; set; }
+        public string? UOM_UPD_UID { get; set; }
 
         //public override string StoreProcedureName => "SP_UOM";
 

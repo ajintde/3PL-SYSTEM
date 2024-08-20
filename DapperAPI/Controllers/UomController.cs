@@ -1,4 +1,5 @@
-﻿using DapperAPI.EntityModel;
+﻿using Azure;
+using DapperAPI.EntityModel;
 using DapperAPI.Interface;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
@@ -69,40 +70,221 @@ namespace DapperAPI.Controllers
             return Ok(entity);
         }
 
-        [HttpPost]
+        [HttpPost("InsertByModel")]
         public async Task<IActionResult> Create([FromBody] OM_UOM obj, string companyCode, string user)
         {
+
+            if (!await ValidateUserAndCompany(user, companyCode))
+            {
+                return Unauthorized("User validation failed.");
+            }
+
+            var userType = await _userValidationService.GetUserTypeAsync(user);
+            string companyCodeToUse = companyCode;
+            if (userType == "OPERATOR" && companyCode == "ALL")
+            {
+                companyCodeToUse = null;
+            }
+
             if (obj == null)
             {
                 return BadRequest();
             }
-            var uom = await _uomreposotory.Insert(obj, companyCode, user);
-            return Ok(uom);
+            var response = await _uomreposotory.Insert(obj, companyCodeToUse, user);
+           
+            if (response.StatusCode == "201")
+            {
+                return StatusCode(int.Parse(response.StatusCode), response); // Returns the exact status code
+            }
+            else if (response.StatusCode == "404")
+            {
+                return NotFound(response);
+            }
+            else if (response.StatusCode == "400")
+            {
+                return BadRequest(response);
+            }
+            else
+            {
+                return StatusCode(500, response);
+                //return StatusCode(int.Parse(response.StatusCode), response); // Returns the exact status code
+            }
         }
 
         [HttpPut("{id}")]
-        public async Task<IActionResult> UpdateUom(string id, [FromBody] OM_UOM uom, string companyCode, string user)
+        [Route("UpdateByModel")]
+        public async Task<IActionResult> UpdateUom(string id,[FromBody] OM_UOM uom, string companyCode, string user)
         {
-            if (id != uom.UOM_CODE)
+            if (!await ValidateUserAndCompany(user, companyCode))
             {
-                return BadRequest("ID mismatch in request");
+                return Unauthorized("User validation failed.");
+            }
+
+            var userType = await _userValidationService.GetUserTypeAsync(user);
+            string companyCodeToUse = companyCode;
+            if (userType == "OPERATOR" && companyCode == "ALL")
+            {
+                companyCodeToUse = null;
             }
 
             try
             {
-                var existingUom = await _uomreposotory.GetById(id, companyCode, user);
-                if (existingUom == null)
+                ////var existingUom = await _uomreposotory.GetById(id, companyCode, user);
+                ////if (existingUom == null)
+                ////{
+                ////    return NotFound($"UOM with ID: {id} not found");
+                ////}
+
+                var response= await _uomreposotory.Update(uom, companyCodeToUse, user);
+                ////return NoContent(); // Successful update with no content to return
+                if (response.StatusCode == "200")
                 {
-                    return NotFound($"UOM with ID: {id} not found");
+                    return Ok(response);
+                }
+                else if (response.StatusCode == "404")
+                {
+                    return NotFound(response);
+                }
+                else if (response.StatusCode == "400")
+                {
+                    return BadRequest(response);
+                }
+                else
+                {
+                    return StatusCode(500, response);
+                    //return StatusCode(int.Parse(response.StatusCode), response); // Returns the exact status code
                 }
 
-                await _uomreposotory.Update(uom, companyCode, user);
-                return NoContent(); // Successful update with no content to return
             }
             catch (Exception ex)
             {
                 
                 return StatusCode(500, ex.Message);
+            }
+        }
+
+        [HttpDelete]
+        [Route("DeleteByModel")]
+        public async Task<IActionResult> Delete([FromBody] OM_UOM uom, string companyCode, string user)
+        {
+            if (!await ValidateUserAndCompany(user, companyCode))
+            {
+                return Unauthorized("User validation failed.");
+            }
+
+            var userType = await _userValidationService.GetUserTypeAsync(user);
+            string companyCodeToUse = companyCode;
+            if (userType == "OPERATOR" && companyCode == "ALL")
+            {
+                companyCodeToUse = null;
+            }
+
+            try
+            {
+                var response = await _uomreposotory.Delete(uom, companyCodeToUse, user);
+
+                if (response.StatusCode == "200")
+                {
+                    return Ok(response);
+                }
+                else if (response.StatusCode == "404")
+                {
+                    return NotFound(response);
+                }
+                else if (response.StatusCode == "400")
+                {
+                    return BadRequest(response);
+                }
+                else
+                {
+                    return StatusCode(500, response);
+                    //return StatusCode(int.Parse(response.StatusCode), response); // Returns the exact status code
+                }
+            }
+            
+
+            catch (Exception ex)
+            {
+
+                return StatusCode(500, ex.Message);
+            }
+
+        }
+
+        [HttpGet("search")]
+        public async Task<IActionResult> Search([FromBody] SearchRequest request)
+        {
+
+            if (!await ValidateUserAndCompany(request.User, request.CompanyCode))
+            {
+                return Unauthorized("User validation failed.");
+            }
+            var userType = await _userValidationService.GetUserTypeAsync(request.User);
+            string companyCodeToUse = request.CompanyCode;
+            if (userType == "OPERATOR" && request.CompanyCode == "ALL")
+            {
+                companyCodeToUse = null;
+            }
+            // Call the search method from your service layer
+            var response = await _uomreposotory.Search<OM_UOM>(
+                request.JsonModel, request.SortBy, request.PageNo, request.PageSize,
+                companyCodeToUse, request.User, request.WhereClause, request.ShowDetail
+            );
+
+            if (response.StatusCode == "200")
+            {
+                return Ok(response);
+            }
+            else if (response.StatusCode == "404")
+            {
+                return NotFound(response);
+            }
+            else if (response.StatusCode == "400")
+            {
+                return BadRequest(response);
+            }
+            else
+            {
+                return StatusCode(500, response);
+                //return StatusCode(int.Parse(response.StatusCode), response); // Returns the exact status code
+            }
+        }
+
+        [HttpGet("searchcount")]
+        public async Task<IActionResult> SearchCount([FromBody] SearchRequest request)
+        {
+
+            if (!await ValidateUserAndCompany(request.User, request.CompanyCode))
+            {
+                return Unauthorized("User validation failed.");
+            }
+            var userType = await _userValidationService.GetUserTypeAsync(request.User);
+            string companyCodeToUse = request.CompanyCode;
+            if (userType == "OPERATOR" && request.CompanyCode == "ALL")
+            {
+                companyCodeToUse = null;
+            }
+            // Call the search method from your service layer
+            var response = await _uomreposotory.SearchCount(
+                request.JsonModel, companyCodeToUse, request.User, request.WhereClause
+            );
+
+            if (response.StatusCode == "200")
+            {
+                return Ok(response);
+            }
+            else if (response.StatusCode == "404")
+            {
+                return NotFound(response);
+            }
+            else if (response.StatusCode == "400")
+            {
+                return BadRequest(response);
+            }
+            else
+            {
+                return StatusCode(500, response);
+                //return StatusCode(int.Parse(response.StatusCode), response); // Returns the exact status code
             }
         }
 

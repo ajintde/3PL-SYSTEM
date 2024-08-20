@@ -12,6 +12,7 @@ using System.Data.Common;
 using System.Linq;
 using System.Reflection;
 using System.Text.RegularExpressions;
+using System.Transactions;
 using static Dapper.SqlMapper;
 using static DapperAPI.EntityModel.CustomAttributes;
 
@@ -23,6 +24,9 @@ namespace DapperAPI.Repository
         //private readonly string _spName;
         private readonly string _primaryKey;
         private readonly string _tableName;
+
+        private readonly string dbType;
+        private readonly string paramPrefix;
 
         private readonly AppSettings _appSettings;
 
@@ -36,7 +40,34 @@ namespace DapperAPI.Repository
             _appSettings = appSettings.Value;
             _tableName = typeof(T).Name;
             //_spName=obj.StoreProcedureName;
+            dbType = _dbConnectionProvider.GetDatabaseType();
+            paramPrefix = dbType == "ORACLE" ? ":" : "@";
 
+        }
+
+        private string GetParamPrefix() => paramPrefix;
+
+        private PropertyInfo GetPrimaryKeyPropertyName()
+        {
+
+            return typeof(T).GetProperties()
+            .FirstOrDefault(p => p.GetCustomAttribute<PrimaryKeyAttribute>() != null);
+        }
+        private async Task<string> GetCustomErrorMessage(string exceptionMessage, IDbConnection conn, IDbTransaction transaction)
+        {
+            // Query to check if the exception message exists in the ERM_ERR_KEY column
+            var sql = "SELECT ERM_ERR_KEY, ERM_RET_MSG FROM ERROR_RETURN_MSG WHERE @ExceptionMessage LIKE '%' + ERM_ERR_KEY + '%'";
+            var errorEntries = await conn.QueryAsync<(string ERM_ERR_KEY, string ERM_RET_MSG)>(sql, new { ExceptionMessage = exceptionMessage }, transaction);
+
+            if (errorEntries.Any())
+            {
+                // Concatenate all ERM_RET_MSG values and include the ERM_ERR_KEY in the final message
+                var concatenatedMessages = string.Join(" ", errorEntries.Select(e => e.ERM_RET_MSG));
+                var errorKey = errorEntries.First().ERM_ERR_KEY;
+                return $"Error Key: {errorKey}. Messages: {concatenatedMessages}";
+            }
+
+            return null;
         }
 
         private string GetCurrentDateTime()
@@ -78,7 +109,7 @@ namespace DapperAPI.Repository
             return response;
         }
 
-        public async Task<CommonResponse<T>> GetById(object id, string companyCode, string user)
+        public async Task<T> GetById(object id, string companyCode, string user)
         {
             var response = new CommonResponse<T>();
             try
@@ -99,26 +130,26 @@ namespace DapperAPI.Repository
                     var result = await conn.QueryFirstOrDefaultAsync<T>(sql, new { Id = id });
                     if (result != null)
                     {
-                        response.ValidationSuccess = true;
-                        response.StatusCode = _appSettings.StatusCodes.Success;
-                        response.ReturnCompleteRow = result;
+                        return result;
                     }
                     else
                     {
-                        response.ValidationSuccess = false;
-                        response.StatusCode = _appSettings.StatusCodes.NotFound;
-                        response.ErrorString = _appSettings.SuccessStrings.NoData;
+                        throw new InvalidOperationException("No Data Found ");
                     }
+
+                    
                 }
             }
             catch (Exception ex)
             {
-                response.ValidationSuccess = false;
-                response.StatusCode = _appSettings.StatusCodes.Error;
-                response.ErrorString = ex.Message;
+                //response.ValidationSuccess = false;
+                //response.StatusCode = _appSettings.StatusCodes.Error;
+                //response.ErrorString = ex.Message;
+
+                throw new InvalidOperationException($"{ex.Message}");
             }
 
-            return response;
+            //return result;
         }
 
         public async Task<CommonResponse<T>> Insert(T obj, string companyCode, string user)
@@ -126,29 +157,52 @@ namespace DapperAPI.Repository
             var response = new CommonResponse<T>();
             try
             {
+                var primaryKeyProperty = GetPrimaryKeyPropertyName();
                 var sql = GenerateInsertSql(obj);
+                // Get the primary key value from the object
+                var primaryKeyValue = primaryKeyProperty.GetValue(obj)?.ToString();
+
                 using (var conn = _dbConnectionProvider.CreateConnection())
                 {
-                    var rowsAffected = await conn.ExecuteAsync(sql, obj);
-                    if (rowsAffected > 0)
+                    try
                     {
-                        response.ValidationSuccess = true;
-                        response.StatusCode = _appSettings.StatusCodes.Success;
-                        response.ReturnCompleteRow = obj;
+                        var rowsAffected = await conn.ExecuteAsync(sql, obj);
+                        if (rowsAffected > 0)
+                        {
+                            var NewData = await GetById(primaryKeyValue, companyCode, user);
+
+                            response.ValidationSuccess = true;
+                            response.StatusCode = _appSettings.StatusCodes.Created;
+                            response.SuccessString = _appSettings.SuccessStrings.InsertSuccess;
+                            response.ReturnCompleteRow = NewData;
+                        }
+                        else
+                        {
+                            response.ValidationSuccess = false;
+                            response.StatusCode = _appSettings.StatusCodes.Error;
+                            response.ErrorString = _appSettings.SuccessStrings.InsertFail;
+                        }
                     }
-                    else
+
+                    catch(Exception ex)
                     {
+                        // Check for custom error messages from ERROR_RETURN_MSG table
+                        var errorMessage = await GetCustomErrorMessage(ex.Message, conn, null);
+
                         response.ValidationSuccess = false;
                         response.StatusCode = _appSettings.StatusCodes.Error;
-                        response.ErrorString = _appSettings.SuccessStrings.InsertFail;
+                        response.ErrorString = errorMessage ?? ex.Message;
+                        return response;
                     }
                 }
             }
             catch (Exception ex)
             {
+               
+
                 response.ValidationSuccess = false;
                 response.StatusCode = _appSettings.StatusCodes.Error;
-                response.ErrorString = ex.Message;
+                response.ErrorString = ex.Message;                
             }
 
             return response;
@@ -217,98 +271,122 @@ namespace DapperAPI.Repository
 
         public async Task<CommonResponse<T>> Delete(T detail, string companyCode, string user)
         {
+            
             var response = new CommonResponse<T>();
-            var detailKeyProperties = GetPrimaryKeyProperties<T>();
-            var updDtPropertyDetail = typeof(T).GetProperties().FirstOrDefault(p => p.Name.EndsWith("_UPD_DT", StringComparison.OrdinalIgnoreCase));
-            var compCodeProperty = typeof(T).GetProperties().FirstOrDefault(p => p.Name.EndsWith("_COMP_CODE", StringComparison.OrdinalIgnoreCase));
-
-            if (!detailKeyProperties.Any())
+            
+            try 
             {
-                throw new InvalidOperationException($"{_appSettings.SuccessStrings.PrimaryKeyNotFound}");
-            }
+                if (detail == null)
+                {
+                    throw new ArgumentNullException(nameof(detail), $"{_tableName} Model cannot be null.");
+                }
 
-            var primaryKeyValues = detailKeyProperties.Select(p => p.GetValue(detail)?.ToString()).ToArray();
-            if (primaryKeyValues.Any(string.IsNullOrEmpty))
-            {
-                throw new InvalidOperationException($"{_appSettings.SuccessStrings.PrimaryKeyError}");
+                var detailKeyProperties = GetPrimaryKeyProperties<T>();
+                var updDtPropertyDetail = typeof(T).GetProperties().FirstOrDefault(p => p.Name.EndsWith("_UPD_DT", StringComparison.OrdinalIgnoreCase));
+                var compCodeProperty = typeof(T).GetProperties().FirstOrDefault(p => p.Name.EndsWith("_COMP_CODE", StringComparison.OrdinalIgnoreCase));
 
-            }
+                if (!detailKeyProperties.Any())
+                {
+                    throw new InvalidOperationException($"{_appSettings.SuccessStrings.PrimaryKeyNotFound}");
+                }
 
-          
+                var primaryKeyValues = detailKeyProperties.Select(p => p.GetValue(detail)?.ToString() ?? string.Empty).ToArray();
+                if (primaryKeyValues.Any(string.IsNullOrEmpty))
+                {
+                    throw new InvalidOperationException($"{_appSettings.SuccessStrings.PrimaryKeyError}");
 
-            // Generate the WHERE clause for the detail table
-            var detailWhereClauses = detailKeyProperties
-                .Select(p => $"{p.Name} = @{p.Name}")
-                .ToList();
-            if (compCodeProperty != null && companyCode != null)
-            {
-                detailWhereClauses.Add($"{compCodeProperty.Name} = @CompCode");
-            }
-            if (updDtPropertyDetail != null)
-            {
-                detailWhereClauses.Add($"({updDtPropertyDetail.Name} = @UpdDt OR {updDtPropertyDetail.Name} IS NULL)");
-            }
+                }
 
-            var deleteDetailSql = $@"
+
+
+                // Generate the WHERE clause for the detail table
+                var detailWhereClauses = detailKeyProperties
+                    .Select(p => $"{p.Name} = @{p.Name}")
+                    .ToList();
+                if (compCodeProperty != null && companyCode != null)
+                {
+                    detailWhereClauses.Add($"{compCodeProperty.Name} = @CompCode");
+                }
+                if (updDtPropertyDetail != null)
+                {
+                    detailWhereClauses.Add($"({updDtPropertyDetail.Name} = @UpdDt OR {updDtPropertyDetail.Name} IS NULL)");
+                }
+
+                var deleteDetailSql = $@"
 DELETE FROM {_tableName}
 WHERE {string.Join(" AND ", detailWhereClauses)};
 ";
 
-            using (var conn = _dbConnectionProvider.CreateConnection())
-            {
-                using (var transaction = conn.BeginTransaction())
+                using (var conn = _dbConnectionProvider.CreateConnection())
                 {
-                    try
+                    using (var transaction = conn.BeginTransaction())
                     {
-                        // Flag variable to track if rows were deleted
-                        bool detailRowsDeleted = false;
-
-                        var deleteDetailParams = new DynamicParameters();
-                        foreach (var keyProp in detailKeyProperties)
+                        try
                         {
-                            var keyPropValue = keyProp.GetValue(detail)?.ToString();
-                            if (!string.IsNullOrEmpty(keyPropValue))
+                            // Flag variable to track if rows were deleted
+                            bool detailRowsDeleted = false;
+
+                            var deleteDetailParams = new DynamicParameters();
+                            foreach (var keyProp in detailKeyProperties)
                             {
-                                deleteDetailParams.Add($"@{keyProp.Name}", keyPropValue);
+                                var keyPropValue = keyProp.GetValue(detail)?.ToString();
+                                if (!string.IsNullOrEmpty(keyPropValue))
+                                {
+                                    deleteDetailParams.Add($"@{keyProp.Name}", keyPropValue);
+                                }
                             }
-                        }
-                        deleteDetailParams.Add("@CompCode", companyCode);
-                        if (updDtPropertyDetail != null)
-                        {
-                            var updDtValue = updDtPropertyDetail.GetValue(detail);
-                            deleteDetailParams.Add("@UpdDt", updDtValue ?? DBNull.Value, dbType: DbType.Object);
-                        }
+                            deleteDetailParams.Add("@CompCode", companyCode);
+                            if (updDtPropertyDetail != null)
+                            {
+                                var updDtValue = updDtPropertyDetail.GetValue(detail);
+                                deleteDetailParams.Add("@UpdDt", updDtValue ?? DBNull.Value, dbType: DbType.Object);
+                            }
 
-                        // Delete the detail
-                        var rowsAffected = await conn.ExecuteAsync(deleteDetailSql, deleteDetailParams, transaction);
-                        if (rowsAffected == 1)
-                        {
-                            detailRowsDeleted = true;
-                        }
-                        else
-                        {
-                            throw new InvalidOperationException($"{_appSettings.SuccessStrings.DeleteNotFound}");
-                        }
+                            // Delete the detail
+                            var rowsAffected = await conn.ExecuteAsync(deleteDetailSql, deleteDetailParams, transaction);
+                            if (rowsAffected == 1)
+                            {
+                                detailRowsDeleted = true;
+                            }
+                            else
+                            {
+                                throw new InvalidOperationException($"{_appSettings.SuccessStrings.DeleteNotFound}");
+                            }
 
-                        // Commit the transaction
-                        transaction.Commit();
+                            // Commit the transaction
+                            transaction.Commit();
 
-                        response.ValidationSuccess = detailRowsDeleted;
-                        response.StatusCode = _appSettings.StatusCodes.Success;
-                        response.SuccessString = _appSettings.SuccessStrings.DeleteSuccess;
-                    }
-                    catch (Exception ex)
-                    {
-                        // Rollback the transaction in case of an error
-                        transaction.Rollback();
-                        response.ValidationSuccess = false;
-                        response.StatusCode = _appSettings.StatusCodes.Error;
-                        response.ErrorString = ex.Message;
+                            response.ValidationSuccess = detailRowsDeleted;
+                            response.StatusCode = _appSettings.StatusCodes.Success;
+                            response.SuccessString = _appSettings.SuccessStrings.DeleteSuccess;
+                        }
+                        catch (Exception ex)
+                        {
+                            // Rollback the transaction in case of an error
+                            transaction.Rollback();
+
+                            // Check for custom error messages from ERROR_RETURN_MSG table
+                            var errorMessage = await GetCustomErrorMessage(ex.Message, conn, null);
+
+                            response.ValidationSuccess = false;
+                            response.StatusCode = _appSettings.StatusCodes.Error;
+                            response.ErrorString = errorMessage ?? ex.Message;
+                            return response;
+                        }
                     }
                 }
-            }
 
-            return response;
+                return response;
+            }
+            catch(Exception ex)
+            {
+                
+                response.ValidationSuccess = false;
+                response.StatusCode = _appSettings.StatusCodes.Error;
+                response.ErrorString = ex.Message;
+                return response;
+            }
+            
         }
 
         public async Task<CommonResponse<T>> Update(T detail, string companyCode, string user)
@@ -367,9 +445,10 @@ WHERE {string.Join(" AND ", detailKeyProperties.Select(p => $"{p.Name} = @{p.Nam
                         if (rowsAffected != 1)
                         {
                             response.ValidationSuccess = false;
-                            response.SuccessString = _appSettings.StatusCodes.NotFound;
+                            response.StatusCode = _appSettings.StatusCodes.NotFound;
                             response.ErrorString = _appSettings.SuccessStrings.UpdateNotFound;  //// add throw
                             response.ReturnCompleteRow = null;
+                            return response;
                         }
                         else
                         {
@@ -377,7 +456,7 @@ WHERE {string.Join(" AND ", detailKeyProperties.Select(p => $"{p.Name} = @{p.Nam
                             var getUpdatedRowSql = $@"
 SELECT * FROM {_tableName}
 WHERE {string.Join(" AND ", detailKeyProperties.Select(p => $"{p.Name} = @{p.Name}"))}
-{(compCodeProperty != null ? $"AND {compCodeProperty.Name} = @CompCode" : "")}
+{(compCodeProperty != null && companyCode != null ? $"AND {compCodeProperty.Name} = @CompCode" : "")}
 ";
 
                             var getUpdatedRowParams = new DynamicParameters();
@@ -385,7 +464,7 @@ WHERE {string.Join(" AND ", detailKeyProperties.Select(p => $"{p.Name} = @{p.Nam
                             {
                                 getUpdatedRowParams.Add($"@{keyProp.Name}", keyProp.GetValue(detail));
                             }
-                            if (compCodeProperty != null)
+                            if (compCodeProperty != null && companyCode != null)
                             {
                                 getUpdatedRowParams.Add("@CompCode", companyCode);
                             }
@@ -393,7 +472,7 @@ WHERE {string.Join(" AND ", detailKeyProperties.Select(p => $"{p.Name} = @{p.Nam
                             var updatedRow = await conn.QueryFirstOrDefaultAsync<T>(getUpdatedRowSql, getUpdatedRowParams, transaction);
 
                             response.ValidationSuccess = true;
-                            response.SuccessString = _appSettings.StatusCodes.Success;
+                            response.SuccessString = _appSettings.SuccessStrings.UpdateSuccess;
                             response.ReturnCompleteRow = updatedRow;
                         }
 
@@ -402,9 +481,13 @@ WHERE {string.Join(" AND ", detailKeyProperties.Select(p => $"{p.Name} = @{p.Nam
                     catch (Exception ex)
                     {
                         transaction.Rollback();
+
+                        // Check for custom error messages from ERROR_RETURN_MSG table
+                        var errorMessage = await GetCustomErrorMessage(ex.Message, conn, null);
+
                         response.ValidationSuccess = false;
                         response.StatusCode = _appSettings.StatusCodes.Error;
-                        response.ErrorString = ex.Message;
+                        response.ErrorString = errorMessage ?? ex.Message;
                     }
                 }
             }
@@ -415,6 +498,7 @@ WHERE {string.Join(" AND ", detailKeyProperties.Select(p => $"{p.Name} = @{p.Nam
         public async Task<CommonResponse<IEnumerable<T>>> Search<T>(string jsonModel, string sortBy, int pageNo, int pageSize, string companyCode, string user, string whereClause, string showDetail)
         {
             var response = new CommonResponse<IEnumerable<T>>();
+            var dbType = _dbConnectionProvider.GetDatabaseType();
             try
             {
                 var whereConditions = new List<string>();
@@ -489,8 +573,20 @@ WHERE {string.Join(" AND ", detailKeyProperties.Select(p => $"{p.Name} = @{p.Nam
                 {
                     var modifiedWhereClause = whereClause;
 
-                    // Handle _CR_DT and _UPD_DT columns with ConvertDate function
-                    modifiedWhereClause = Regex.Replace(modifiedWhereClause, @"(\b\w+_CR_DT\b|\b\w+_UPD_DT\b)", match => $"dbo.ConvertDate({match.Value})");
+                    //// Handle _CR_DT and _UPD_DT columns with ConvertDate function
+                    //// UPDATED: Regex.Replace to handle dbo.ConvertDate function
+                    ////modifiedWhereClause = Regex.Replace(modifiedWhereClause, @"(\b\w+_CR_DT\b|\b\w+_UPD_DT\b)", match => $"dbo.ConvertDate({match.Value})");
+                    ///
+
+                    // Handle _CR_DT and _UPD_DT columns with appropriate function based on dbType
+                    if (dbType == "SQL")
+                    {
+                        modifiedWhereClause = Regex.Replace(modifiedWhereClause, @"(\b\w+_CR_DT\b|\b\w+_UPD_DT\b)", match => $"CONVERT(DATE, {match.Value})");
+                    }
+                    else if (dbType == "ORACLE")
+                    {
+                        modifiedWhereClause = Regex.Replace(modifiedWhereClause, @"(\b\w+_CR_DT\b|\b\w+_UPD_DT\b)", match => $"TO_CHAR({match.Value}, 'DD-MON-YYYY')");
+                    }
 
                     whereConditions.Add(modifiedWhereClause);
                 }
@@ -515,6 +611,7 @@ OFFSET @Offset ROWS FETCH NEXT @PageSize ROWS ONLY;";
                 using (var conn = _dbConnectionProvider.CreateConnection())
                 {
                     // Log the SQL query and parameters for debugging
+                    // UPDATED: Added logging of SQL query and parameters
                     Console.WriteLine("SQL Query: " + sql);
                     foreach (var param in parameters.ParameterNames)
                     {
@@ -581,21 +678,144 @@ ORDER BY {orderByColumn}
                     }
 
                     response.ValidationSuccess = true;
-                    response.SuccessString = "200";
                     response.ReturnCompleteRow = result;
                 }
             }
             catch (Exception ex)
             {
                 response.ValidationSuccess = false;
-                response.SuccessString = "500";
                 response.ErrorString = ex.Message;
             }
 
             return response;
         }
 
-        
+        public async Task<CommonResponse<int>> SearchCount(string jsonModel, string companyCode, string user, string whereClause)
+        {
+            var response = new CommonResponse<int>();
+            var dbType = _dbConnectionProvider.GetDatabaseType();
+            try
+            {
+                var whereConditions = new List<string>();
+                var parameters = new DynamicParameters();
+
+                // Log the raw input data from Postman
+                Console.WriteLine("Raw Input Data:");
+                Console.WriteLine($"jsonModel: {jsonModel}");
+                Console.WriteLine($"companyCode: {companyCode}");
+                Console.WriteLine($"user: {user}");
+                Console.WriteLine($"whereClause: {whereClause}");
+
+                // Deserialize the JSON model into a dictionary if not null
+                if (!string.IsNullOrEmpty(jsonModel))
+                {
+                    var modelDict = JsonConvert.DeserializeObject<Dictionary<string, object>>(jsonModel);
+
+                    // Add properties from the model to the whereConditions list
+                    foreach (var kvp in modelDict)
+                    {
+                        var columnName = kvp.Key.ToUpper();
+                        var value = kvp.Value;
+
+                        if (value != null && !string.IsNullOrEmpty(value.ToString()))
+                        {
+                            whereConditions.Add($"{columnName} LIKE {GetParamPrefix()}{columnName}");
+                            parameters.Add($"{GetParamPrefix()}{columnName}", $"%{value}%");
+                        }
+                    }
+                }
+
+                // Add dynamic conditions for properties ending with _COMP_CODE, excluding fm_comp_code and to_comp_code
+                var modelProperties = typeof(T).GetProperties();
+                var compCodeProperties = modelProperties.Where(p => p.Name.EndsWith("_COMP_CODE", StringComparison.OrdinalIgnoreCase) &&
+                                                                    !string.Equals(p.Name, "FM_COMP_CODE", StringComparison.OrdinalIgnoreCase) &&
+                                                                    !string.Equals(p.Name, "TO_COMP_CODE", StringComparison.OrdinalIgnoreCase)).ToList();
+
+                if (compCodeProperties != null && companyCode == null)
+                {
+                    // Query v_adm_user_locn to get all comp_code for the given user
+                    var view_Query = $"SELECT DISTINCT UL_COMP_CODE FROM v_adm_user_locn WHERE ul_frz_flag = 'N' AND ul_user_id = {GetParamPrefix()}User";
+                    parameters.Add($"{GetParamPrefix()}User", user);
+
+                    using (var conn = _dbConnectionProvider.CreateConnection())
+                    {
+                        var compCodes = (await conn.QueryAsync<string>(view_Query, parameters)).ToList();
+
+                        if (compCodes.Any())
+                        {
+                            // Add comp_code conditions to the where clause using IN clause
+                            var compCodeCondition = $"{compCodeProperties.First().Name} IN ({string.Join(", ", compCodes.Select(compCode => $"'{compCode}'"))})";
+                            whereConditions.Add($"({compCodeCondition})");
+                        }
+                    }
+                }
+                else
+                {
+                    foreach (var prop in compCodeProperties)
+                    {
+                        var columnName = prop.Name.ToUpper();
+                        whereConditions.Add($"{columnName} = {GetParamPrefix()}{columnName}");
+                        parameters.Add($"{GetParamPrefix()}{columnName}", companyCode);
+                    }
+                }
+
+                // Process additional whereClause condition if provided
+                if (!string.IsNullOrEmpty(whereClause))
+                {
+                    var modifiedWhereClause = whereClause;
+
+                    // Handle _CR_DT and _UPD_DT columns with appropriate function based on dbType
+                    if (dbType == "SQL")
+                    {
+                        modifiedWhereClause = Regex.Replace(modifiedWhereClause, @"(\b\w+_CR_DT\b|\b\w+_UPD_DT\b)", match => $"CONVERT(DATE, {match.Value})");
+                    }
+                    else if (dbType == "ORACLE")
+                    {
+                        modifiedWhereClause = Regex.Replace(modifiedWhereClause, @"(\b\w+_CR_DT\b|\b\w+_UPD_DT\b)", match => $"TO_CHAR({match.Value}, 'DD-MON-YYYY')");
+                    }
+
+                    whereConditions.Add(modifiedWhereClause);
+                }
+
+                // Construct the final SQL query to count the rows
+                var whereSql = whereConditions.Any() ? "WHERE " + string.Join(" AND ", whereConditions) : string.Empty;
+                var sql = $@"
+SELECT COUNT(*) 
+FROM {_tableName}
+{whereSql};";
+
+                using (var conn = _dbConnectionProvider.CreateConnection())
+                {
+                    // Log the SQL query and parameters for debugging
+                    Console.WriteLine("SQL Query: " + sql);
+                    foreach (var param in parameters.ParameterNames)
+                    {
+                        Console.WriteLine($"{param}: {parameters.Get<dynamic>(param)}");
+                    }
+
+                    var count = await conn.ExecuteScalarAsync<int>(sql, parameters);
+                     
+                    if (count > 0)
+                    {
+                        response.ValidationSuccess = true;
+                        response.ReturnCompleteRow = count;
+                    }
+                    else
+                    {
+                        response.ValidationSuccess = true;
+                        response.SuccessString = _appSettings.SuccessStrings.NoData;
+                        response.ReturnCompleteRow = count;
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                response.ValidationSuccess = false;
+                response.ErrorString = ex.Message;
+            }
+
+            return response;
+        }
 
         private string GenerateInsertSql(T obj)
         {

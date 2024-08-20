@@ -9,6 +9,7 @@
     public class StatusCodes
     {
         public string Success { get; set; }
+        public string Created { get; set; }
         public string NotFound { get; set; }
         public string Error { get; set; }
     }

@@ -17,6 +17,7 @@ namespace DapperAPI.Interface
         Task<CommonResponse<TDetail>> UpdateDetail(TDetail detail, string companyCode, string user);
         Task<CommonResponse<TDetail>> UpdateDetailByIdentity(TDetail detail, string companyCode, string user);
         Task<CommonResponse<IEnumerable<T>>> Search<T>(string jsonModel, string SortBy, int pageNo, int pageSize, string companyCode, string user, string whereClause, string showDetail); Task<CommonResponse<T>> Delete(T obj, string companyCode, string user);
+        Task<CommonResponse<int>> SearchCount(string jsonModel, string companyCode, string user, string whereClause);
         Task<CommonResponse<TDetail>> DeleteDetail(TDetail detail, string companyCode, string user);
         Task<CommonResponse<object>> Import(List<T> obj, string companyCode, string user, string result);
     }

@@ -56,13 +56,13 @@ namespace DapperAPI.Controllers
 
             if (userType == "CLIENT")
             {
-                var items = await _itemRepositor.GetAll(companyCode, user);
-                return Ok(items);
+                var response = await _itemRepositor.GetAll(companyCode, user);
+                return Ok(response);
             }
             else
             {
-                var items = await _itemRepositor.GetAll(companyCode, user);
-                return Ok(items);
+                var response = await _itemRepositor.GetAll(companyCode, user);
+                return Ok(response);
             }
 
                 
@@ -79,21 +79,21 @@ namespace DapperAPI.Controllers
 
             if (userType == "CLIENT")
             {
-                var item = await _itemRepositor.GetById(id, companyCode, user);
-                if (item == null)
+                var response = await _itemRepositor.GetById(id, companyCode, user);
+                if (response == null)
                 {
                     return NotFound();
                 }
-                return Ok(item);
+                return Ok(response);
             }
             else
             {
-                var item = await _itemRepositor.GetById(id, companyCode, user);
-                if (item == null)
+                var response = await _itemRepositor.GetById(id, companyCode, user);
+                if (response == null)
                 {
                     return NotFound();
                 }
-                return Ok(item);
+                return Ok(response);
             }
 
                 
@@ -114,7 +114,24 @@ namespace DapperAPI.Controllers
 
             var response = await _itemRepositor.Insert(item, companyCode, user);
             Log.Information("ITEM INSERT NORMAL = {@result}", response);
-            return Ok(response);
+
+            if (response.StatusCode == "200")
+            {
+                return Ok(response);
+            }
+            else if (response.StatusCode == "404")
+            {
+                return NotFound(response);
+            }
+            else if (response.StatusCode == "400")
+            {
+                return BadRequest(response);
+            }
+            else
+            {
+                return StatusCode(500, response);
+                //return StatusCode(int.Parse(response.StatusCode), response); // Returns the exact status code
+            }
         }
 
         [HttpPut("UpdateByModel")]
@@ -137,7 +154,24 @@ namespace DapperAPI.Controllers
                 companyCodeToUse = null;
             }
             var response =await _itemRepositor.Update(item, companyCodeToUse, user);
-            return Ok(response);
+
+            if (response.StatusCode == "200")
+            {
+                return Ok(response);
+            }
+            else if (response.StatusCode == "404")
+            {
+                return NotFound(response);
+            }
+            else if (response.StatusCode == "400")
+            {
+                return BadRequest(response);
+            }
+            else
+            {
+                return StatusCode(500, response);
+                //return StatusCode(int.Parse(response.StatusCode), response); // Returns the exact status code
+            }
         }
 
         [HttpDelete]
@@ -157,13 +191,30 @@ namespace DapperAPI.Controllers
             }
 
             var response = await _itemRepositor.Delete(item, companyCodeToUse, user);
-            return Ok(response);
+
+            if (response.StatusCode == "200")
+            {
+                return Ok(response);
+            }
+            else if (response.StatusCode == "404")
+            {
+                return NotFound(response);
+            }
+            else if (response.StatusCode == "400")
+            {
+                return BadRequest(response);
+            }
+            else
+            {
+                return StatusCode(500, response);
+                //return StatusCode(int.Parse(response.StatusCode), response); // Returns the exact status code
+            }
         }
 
         
         
 
-        [HttpPost("search")]
+        [HttpGet("search")]
         public async Task<IActionResult> Search([FromBody] SearchRequest request)
         {
             
@@ -171,19 +222,72 @@ namespace DapperAPI.Controllers
             {
                 return Unauthorized("User validation failed.");
             }
+            var userType = await _userValidationService.GetUserTypeAsync(request.User);
+            string companyCodeToUse = request.CompanyCode;
+            if (userType == "OPERATOR" && request.CompanyCode == "ALL")
+            {
+                companyCodeToUse = null;
+            }
             // Call the search method from your service layer
             var response = await _itemRepositor.Search<OM_ITEM>(
                 request.JsonModel, request.SortBy, request.PageNo, request.PageSize,
-                null, request.User, request.WhereClause, request.ShowDetail
+                companyCodeToUse, request.User, request.WhereClause, request.ShowDetail
             );
 
-            if (response.ValidationSuccess)
+            if (response.StatusCode == "200")
             {
                 return Ok(response);
             }
+            else if (response.StatusCode == "404")
+            {
+                return NotFound(response);
+            }
+            else if (response.StatusCode == "400")
+            {
+                return BadRequest(response);
+            }
             else
             {
-                return BadRequest(response.ErrorString);
+                return StatusCode(500,response);
+                //return StatusCode(int.Parse(response.StatusCode), response); // Returns the exact status code
+            }
+        }
+
+        [HttpGet("searchcount")]
+        public async Task<IActionResult> SearchCount([FromBody] SearchRequest request)
+        {
+
+            if (!await ValidateUserAndCompany(request.User, request.CompanyCode))
+            {
+                return Unauthorized("User validation failed.");
+            }
+            var userType = await _userValidationService.GetUserTypeAsync(request.User);
+            string companyCodeToUse = request.CompanyCode;
+            if (userType == "OPERATOR" && request.CompanyCode == "ALL")
+            {
+                companyCodeToUse = null;
+            }
+            // Call the search method from your service layer
+            var response = await _itemRepositor.SearchCount(
+                request.JsonModel,companyCodeToUse, request.User, request.WhereClause
+            );
+
+            if (response.StatusCode == "200")
+            {
+                return Ok(response);
+            }
+            else if (response.StatusCode == "404")
+            {
+                return NotFound(response);
+            }
+            else if (response.StatusCode == "400")
+            {
+                return BadRequest(response);
+            }
+            else
+            {
+                return StatusCode(500, response);
+                //return StatusCode(int.Parse(response.StatusCode), response); // Returns the exact status code
             }
         }
 

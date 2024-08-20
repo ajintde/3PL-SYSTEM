@@ -18,28 +18,66 @@ namespace DapperAPI.Services
         }
     }
 
-    public class GlobalExceptionHandler(ILogger<GlobalExceptionHandler> logger) : IExceptionHandler
+    ////public class GlobalExceptionHandler(ILogger<GlobalExceptionHandler> logger) : IExceptionHandler
+    ////{
+    ////    public async ValueTask<bool> TryHandleAsync(HttpContext httpContext, Exception exception, CancellationToken cancellationToken)
+    ////    {
+    ////        CommonResponse<object> response = new CommonResponse<object>();
+
+    ////        response.ValidationSuccess = false;
+    ////        response.StatusCode= Convert.ToString(httpContext.Response.StatusCode);   
+    ////        if (exception is BaseException e)
+    ////        {
+    ////            response.ErrorString = e.Message;
+    ////        }
+    ////        else
+    ////        {
+    ////            response.ErrorString = exception.Message;
+    ////        }
+
+    ////        httpContext.Response.ContentType = "application/json";
+    ////        httpContext.Response.StatusCode = httpContext.Response.StatusCode;
+
+    ////       //await httpContext.Response.WriteAsJsonAsync(response).ConfigureAwait(false);
+    ////        return true;
+    ////    }
+    ////}
+    ///
+    public class GlobalExceptionHandler : IExceptionHandler
     {
-        public async ValueTask<bool> TryHandleAsync(HttpContext httpContext, Exception exception, CancellationToken cancellationToken)
+        private readonly ILogger<GlobalExceptionHandler> _logger;
+
+        public GlobalExceptionHandler(ILogger<GlobalExceptionHandler> logger)
         {
-            CommonResponse<object> response = new CommonResponse<object>();
+            _logger = logger;
+        }
+
+        public async ValueTask<bool> TryHandleAsync(HttpContext context, Exception exception, CancellationToken cancellationToken)
+        {
             
-            response.ValidationSuccess = false;
-            response.StatusCode= Convert.ToString(httpContext.Response.StatusCode);   
-            if (exception is BaseException e)
+
+            if (exception is BaseException baseException)
             {
-                response.ErrorString = e.Message;
+                context.Response.StatusCode = (int)baseException.StatusCode;
             }
             else
             {
-                response.ErrorString = exception.Message;
+                context.Response.StatusCode = (int)HttpStatusCode.InternalServerError;
             }
 
-            httpContext.Response.ContentType = "application/json";
-            httpContext.Response.StatusCode = httpContext.Response.StatusCode;
+            var response = new CommonResponse<object>
+            {
+                ValidationSuccess = false,
+                StatusCode = context.Response.StatusCode.ToString(),
+                ErrorString = exception.Message
+            };
 
-           // await httpContext.Response.WriteAsJsonAsync(response).ConfigureAwait(false);
+            _logger.LogError(exception, $"An error occurred on : {DateTime.Now}");
+
+            context.Response.ContentType = "application/json";
+            await context.Response.WriteAsJsonAsync(response);
             return true;
         }
     }
+
 }

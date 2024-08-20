@@ -84,8 +84,8 @@ namespace DapperAPI.EntityModel
 
         public string? IU_RPT_UOM { get; set; }
 
-        
 
+        
         public long? IU_WEIGHT { get; set; }
 
         [MaxLength(2)]

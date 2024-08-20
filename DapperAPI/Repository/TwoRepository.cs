@@ -33,6 +33,8 @@ namespace DapperAPI.Repository
         private readonly string _tableName;
         private readonly string _detailTableName;
         private readonly ILogger<T> _logger;
+        private readonly string dbType;
+        private readonly string paramPrefix;
 
         private readonly AppSettings _appSettings;
 
@@ -42,9 +44,12 @@ namespace DapperAPI.Repository
             _tableName = typeof(T).Name;
             _detailTableName = typeof(TDetail).Name;
             _appSettings = appSettings.Value;
-
+            dbType = _dbConnectionProvider.GetDatabaseType();
+            paramPrefix = dbType == "ORACLE" ? ":" : "@";
 
         }
+
+        private string GetParamPrefix() => paramPrefix;
 
         private string GetCurrentDateTime()
         {
@@ -279,7 +284,7 @@ namespace DapperAPI.Repository
             }
         }
 
-        public async Task<CommonResponse<T>> Insert(T obj, string companyCode, string user)
+        public async Task<CommonResponse<T>> Insert_old(T obj, string companyCode, string user)
         {
             var response = new CommonResponse<T>();
             var primaryKeyProperty = GetPrimaryKeyPropertyName();
@@ -386,6 +391,137 @@ namespace DapperAPI.Repository
             return response;
         }
 
+        public async Task<CommonResponse<T>> Insert(T obj, string companyCode, string user)
+        {
+            
+            var response = new CommonResponse<T>();
+            var primaryKeyProperty = GetPrimaryKeyPropertyName();
+            var foreignKeyProperty = GetForeignKeyPropertyName();
+
+            if (primaryKeyProperty == null || foreignKeyProperty == null)
+            {
+                response.ValidationSuccess = false;
+                response.StatusCode = _appSettings.StatusCodes.Error;
+                response.ErrorString = _appSettings.SuccessStrings.PrimaryKeyNotFound;
+                return response;
+            }
+
+            // Get the primary key value from the object
+            var primaryKeyValue = primaryKeyProperty.GetValue(obj)?.ToString();
+
+            if (string.IsNullOrEmpty(primaryKeyValue))
+            {
+                response.ValidationSuccess = false;
+                response.SuccessString = _appSettings.StatusCodes.Error;
+                response.ErrorString = _appSettings.SuccessStrings.PrimaryKeyError;
+                return response;
+            }
+
+            // Generate the INSERT SQL statement for the header
+            var insertHeaderColumns = GetColumnNames<T>(true).ToList();
+            var insertHeaderValues = insertHeaderColumns.Select(c => $"@{c}").ToList();
+
+            // Replace _CR_DT columns with the current date and time
+            var currentDateTime = GetCurrentDateTime();
+            for (int i = 0; i < insertHeaderColumns.Count; i++)
+            {
+                if (insertHeaderColumns[i].EndsWith("_CR_DT"))
+                {
+                    insertHeaderValues[i] = $"'{currentDateTime}'";
+                }
+            }
+
+            var insertHeaderSql = $@"
+    INSERT INTO {_tableName} ({string.Join(",", insertHeaderColumns)})
+    VALUES ({string.Join(",", insertHeaderValues)});
+";
+
+            using (var conn = _dbConnectionProvider.CreateConnection())
+            {
+                using (var transaction = conn.BeginTransaction())
+                {
+                    try
+                    {
+                        // Insert the header
+                        await conn.ExecuteAsync(insertHeaderSql, obj, transaction);
+
+                        // Generate the INSERT SQL statement for the details
+                        var insertDetailColumns = GetColumnNames<TDetail>(true).ToList();
+                        var insertDetailValues = insertDetailColumns.Select(c => $"@{c}").ToList();
+
+                        // Replace _CR_DT columns with GETDATE()
+                        for (int i = 0; i < insertDetailColumns.Count; i++)
+                        {
+                            if (insertDetailColumns[i].EndsWith("_CR_DT"))
+                            {
+                                insertDetailValues[i] = $"'{currentDateTime}'";
+                            }
+                        }
+
+                        var insertDetailSql = $@"
+                INSERT INTO {_detailTableName} ({string.Join(",", insertDetailColumns)})
+                VALUES ({string.Join(",", insertDetailValues)});
+            ";
+
+                        // Get the detail list property and insert each detail entity
+                        var detailListProperty = typeof(T).GetProperty(_tableName + "_" + _detailTableName);
+                        var detailList = detailListProperty.GetValue(obj) as IList<TDetail>;
+
+                        foreach (var detail in detailList)
+                        {
+                            // Set the foreign key value to match the primary key of the header
+                            foreignKeyProperty.SetValue(detail, primaryKeyValue);
+
+                            await conn.ExecuteAsync(insertDetailSql, detail, transaction);
+                        }
+
+                        // Commit the transaction
+                        transaction.Commit();
+
+                        var NewData = await GetById(primaryKeyValue, companyCode, user);
+
+                        response.ValidationSuccess = true;
+                        response.StatusCode = _appSettings.StatusCodes.Success;
+                        response.SuccessString = _appSettings.SuccessStrings.InsertSuccess;
+                        response.ReturnCompleteRow = NewData;
+                    }
+                    catch (Exception ex)
+                    {
+                        // Rollback the transaction in case of an error
+                        transaction.Rollback();
+
+                        // Check for custom error messages from ERROR_RETURN_MSG table
+                        var errorMessage = await GetCustomErrorMessage(ex.Message, conn, transaction);
+
+                        response.ValidationSuccess = false;
+                        response.StatusCode = _appSettings.StatusCodes.Error;
+                        response.ErrorString = errorMessage ?? ex.Message;
+                        //response.ErrorString = ex.Message;
+                    }
+                }
+            }
+
+            return response;
+        }
+
+        // Method to get custom error message from ERROR_RETURN_MSG table
+        private async Task<string> GetCustomErrorMessage(string exceptionMessage, IDbConnection conn, IDbTransaction transaction)
+        {
+            // Query to check if the exception message exists in the ERM_ERR_KEY column
+            var sql = "SELECT ERM_ERR_KEY, ERM_RET_MSG FROM ERROR_RETURN_MSG WHERE @ExceptionMessage LIKE '%' + ERM_ERR_KEY + '%'";
+            var errorEntries = await conn.QueryAsync<(string ERM_ERR_KEY, string ERM_RET_MSG)>(sql, new { ExceptionMessage = exceptionMessage }, transaction);
+
+            if (errorEntries.Any())
+            {
+                // Concatenate all ERM_RET_MSG values and include the ERM_ERR_KEY in the final message
+                var concatenatedMessages = string.Join(" ", errorEntries.Select(e => e.ERM_RET_MSG));
+                var errorKey = errorEntries.First().ERM_ERR_KEY;
+                return $"Error Key: {errorKey}. Messages: {concatenatedMessages}";
+            }
+
+            return null;
+        }
+
         public async Task<CommonResponse<TDetail>> InsertDetail(TDetail detail, string companyCode, string user)
         {
             var response = new CommonResponse<TDetail>();
@@ -411,17 +547,27 @@ namespace DapperAPI.Repository
                 return response;
             }
 
-            if (compCodeProperty == null)
-            {
-                response.ValidationSuccess = false;
-                response.SuccessString = "500";
-                response.ErrorString = "Company code property not found in the detail type.";
-                return response;
-            }
+            //if (compCodeProperty == null)
+            //{
+            //    response.ValidationSuccess = false;
+            //    response.SuccessString = "500";
+            //    response.ErrorString = "Company code property not found in the detail type.";
+            //    return response;
+            //}
 
             // Generate the INSERT clause for the detail table
             var detailColumns = detailProperties.Select(p => p.Name).ToList();
             var detailValues = detailProperties.Select(p => $"@{p.Name}").ToList();
+
+            // Replace _CR_DT columns with the current date and time
+            var currentDateTime = GetCurrentDateTime();
+            for (int i = 0; i < detailColumns.Count; i++)
+            {
+                if (detailColumns[i].EndsWith("_CR_DT"))
+                {
+                    detailValues[i] = $"'{currentDateTime}'";
+                }
+            }
 
             var insertDetailSql = $@"
 INSERT INTO {_detailTableName} ({string.Join(", ", detailColumns)})
@@ -432,7 +578,7 @@ VALUES ({string.Join(", ", detailValues)});
             var getInsertedRowSql = $@"
 SELECT * FROM {_detailTableName}
 WHERE {string.Join(" AND ", detailKeyProperties.Select(p => $"{p.Name} = @{p.Name}"))}
-AND {compCodeProperty.Name} = @CompCode
+{(compCodeProperty != null && companyCode != null ? $"AND {compCodeProperty.Name} = @CompCode" : "")}
 ";
 
             using (var conn = _dbConnectionProvider.CreateConnection())
@@ -447,7 +593,10 @@ AND {compCodeProperty.Name} = @CompCode
                             var propValue = prop.GetValue(detail);
                             insertDetailParams.Add($"@{prop.Name}", propValue);
                         }
-                        insertDetailParams.Add("@CompCode", companyCode);
+                        if (compCodeProperty != null && companyCode != null)
+                        {
+                            insertDetailParams.Add("@CompCode", companyCode);
+                        }
 
                         // Insert the detail
                         var rowsAffected = await conn.ExecuteAsync(insertDetailSql, insertDetailParams, transaction);
@@ -483,9 +632,11 @@ AND {compCodeProperty.Name} = @CompCode
                     {
                         // Rollback the transaction in case of an error
                         transaction.Rollback();
+
+                        var errorMessage = await GetCustomErrorMessage(ex.Message, conn, transaction);
                         response.ValidationSuccess = false;
                         response.SuccessString = _appSettings.StatusCodes.Error;
-                        response.ErrorString = ex.Message;
+                        response.ErrorString = errorMessage ?? ex.Message;
                     }
                 }
             }
@@ -585,13 +736,15 @@ WHERE {string.Join(" AND ", whereConditions)}
                             var insertedRow = await conn.QueryFirstOrDefaultAsync<TDetail>(getInsertedRowSql, getInsertedRowParams, transaction);
 
                             response.ValidationSuccess = true;
-                            response.SuccessString = "200";
+                            response.StatusCode = _appSettings.StatusCodes.Success;
+                            response.SuccessString = _appSettings.SuccessStrings.InsertSuccess;
                             response.ReturnCompleteRow = insertedRow;
                         }
                         else
                         {
                             response.ValidationSuccess = false;
-                            response.SuccessString = "204"; // 204 No Content if nothing was inserted
+                            response.StatusCode = _appSettings.StatusCodes.NotFound; // 204 No Content if nothing was inserted
+                            response.SuccessString=_appSettings.SuccessStrings.NoData;
                         }
 
                         // Commit the transaction
@@ -601,9 +754,11 @@ WHERE {string.Join(" AND ", whereConditions)}
                     {
                         // Rollback the transaction in case of an error
                         transaction.Rollback();
+
+                        var errorMessage = await GetCustomErrorMessage(ex.Message, conn, transaction);
                         response.ValidationSuccess = false;
-                        response.SuccessString = "500";
-                        response.ErrorString = ex.Message;
+                        response.SuccessString = _appSettings.StatusCodes.Error;
+                        response.ErrorString = errorMessage ?? ex.Message;
                     }
                 }
             }
@@ -727,16 +882,20 @@ VALUES ({string.Join(",", insertDetailValues)});
                         var newData = await GetById(headerPrimaryKeyValue.ToString(), companyCode, user);
 
                         response.ValidationSuccess = true;
-                        response.SuccessString = "200";
+                        response.StatusCode = _appSettings.StatusCodes.Success;
+                        response.SuccessString = _appSettings.SuccessStrings.InsertSuccess;
                         response.ReturnCompleteRow = newData;
                     }
                     catch (Exception ex)
                     {
                         // Rollback the transaction in case of an error
                         transaction.Rollback();
+
+                        var errorMessage = await GetCustomErrorMessage(ex.Message, conn, transaction);
+
                         response.ValidationSuccess = false;
-                        response.SuccessString = "500";
-                        response.ErrorString = ex.ToString();
+                        response.StatusCode = _appSettings.StatusCodes.Error;                        
+                        response.ErrorString = errorMessage ?? ex.ToString();
                     }
                 }
             }
@@ -792,7 +951,7 @@ VALUES ({string.Join(",", insertDetailValues)});
             var updateHeaderSql = $@"
     UPDATE {_tableName}
     SET {string.Join(",", GetColumnNames<T>().Where(c => !c.EndsWith("_CR_DT") && c != primaryKey.Name).Select(c => $"{c} = @{c}"))}
-    {(updateDateProperty != null ? $", {updateDateProperty.Name} = {currentDateTime}" : "")}
+    {(updateDateProperty != null ? $", {updateDateProperty.Name} = '{currentDateTime}'" : "")}
     WHERE {string.Join(" AND ", primaryKeyProperties.Select(p => $"{p.Name} = @{p.Name}"))}
     {(updateDateProperty != null ? $" AND ({updateDateProperty.Name} = @{updateDateProperty.Name} OR {updateDateProperty.Name} IS NULL)" : "")};
 ";
@@ -887,24 +1046,28 @@ VALUES ({string.Join(",", insertDetailValues)});
                             var newData = await GetById(primaryKeyValue, companyCode, user);
 
                             response.ValidationSuccess = true;
-                            response.SuccessString = "200";
+                            response.StatusCode = _appSettings.StatusCodes.Success;
+                            response.SuccessString = _appSettings.SuccessStrings.UpdateSuccess;
                             response.ReturnCompleteRow = newData;
                         }
                         else
                         {
+                            var oldData = await GetById(primaryKeyValue, companyCode, user);
                             response.ValidationSuccess = true;
-                            response.SuccessString = "204";
-                            response.ErrorString = "No rows updated";
-                            response.ReturnCompleteRow = obj;
+                            response.StatusCode = _appSettings.StatusCodes.NotFound;
+                            response.ErrorString = _appSettings.SuccessStrings.UpdateNotFound;
+                            response.ReturnCompleteRow = oldData;
                         }
                     }
                     catch (Exception ex)
                     {
                         // Rollback the transaction in case of an error
                         transaction.Rollback();
+                        var errorMessage = await GetCustomErrorMessage(ex.Message, conn, transaction);
+
                         response.ValidationSuccess = false;
-                        response.SuccessString = "500";
-                        response.ErrorString = ex.Message;
+                        response.StatusCode = _appSettings.StatusCodes.Error;
+                        response.ErrorString = errorMessage ?? ex.Message;
                         return response;
                     }
                 }
@@ -916,38 +1079,45 @@ VALUES ({string.Join(",", insertDetailValues)});
         {
             var response = new CommonResponse<TDetail>();
 
-            // Retrieve values from appsettings.json
-            
-
-            var detailKeyProperties = GetPrimaryKeyProperties<TDetail>();
-
-            if (!detailKeyProperties.Any())
+            try
             {
-                
-                throw new InvalidOperationException($"{_appSettings.SuccessStrings.PrimaryKeyNotFound}");
-            }
+                if (detail == null)
+                {
+                    throw new ArgumentNullException(nameof(detail), $"{_detailTableName} Model cannot be null.");
+                }
 
-            var primaryKeyValues = detailKeyProperties.Select(p => p.GetValue(detail)?.ToString()).ToArray();
+                // Retrieve values from appsettings.json
 
-            if (primaryKeyValues.Any(string.IsNullOrEmpty))
-            {
-                throw new InvalidOperationException($"{_appSettings.SuccessStrings.PrimaryKeyError}");
-            }
 
-            var updateDateDetailProperty = typeof(TDetail).GetProperties().FirstOrDefault(p => p.Name.EndsWith("_UPD_DT"));
-            if (updateDateDetailProperty == null)
-            {
-                throw new InvalidOperationException($"{_appSettings.SuccessStrings.UpdateDateNotFound}");
-            }
+                var detailKeyProperties = GetPrimaryKeyProperties<TDetail>();
 
-            // Get the company code property from the detail type
-            var compCodeProperty = typeof(TDetail).GetProperties().FirstOrDefault(p => p.Name.EndsWith("_COMP_CODE", StringComparison.OrdinalIgnoreCase));
-            
+                if (!detailKeyProperties.Any())
+                {
 
-            // Get the current date and time
-            var currentDateTime = GetCurrentDateTime();
+                    throw new InvalidOperationException($"{_appSettings.SuccessStrings.PrimaryKeyNotFound}");
+                }
 
-            var updateDetailSql = $@"
+                var primaryKeyValues = detailKeyProperties.Select(p => p.GetValue(detail)?.ToString()).ToArray();
+
+                if (primaryKeyValues.Any(string.IsNullOrEmpty))
+                {
+                    throw new InvalidOperationException($"{_appSettings.SuccessStrings.PrimaryKeyError}");
+                }
+
+                var updateDateDetailProperty = typeof(TDetail).GetProperties().FirstOrDefault(p => p.Name.EndsWith("_UPD_DT"));
+                if (updateDateDetailProperty == null)
+                {
+                    throw new InvalidOperationException($"{_appSettings.SuccessStrings.UpdateDateNotFound}");
+                }
+
+                // Get the company code property from the detail type
+                var compCodeProperty = typeof(TDetail).GetProperties().FirstOrDefault(p => p.Name.EndsWith("_COMP_CODE", StringComparison.OrdinalIgnoreCase));
+
+
+                // Get the current date and time
+                var currentDateTime = GetCurrentDateTime();
+
+                var updateDetailSql = $@"
 UPDATE {_detailTableName}
 SET {string.Join(",", GetColumnNames<TDetail>().Where(c => !c.EndsWith("_CR_DT") && c != detailKeyProperties.FirstOrDefault().Name).Select(c => $"{c} = @{c}"))}   
 {(updateDateDetailProperty != null ? $", {updateDateDetailProperty.Name} = '{currentDateTime}'" : "")} 
@@ -956,182 +1126,78 @@ WHERE {string.Join(" AND ", detailKeyProperties.Select(p => $"{p.Name} = @{p.Nam
 {(updateDateDetailProperty != null ? $" AND ({updateDateDetailProperty.Name} IS NULL OR {updateDateDetailProperty.Name} = @{updateDateDetailProperty.Name})" : "")};
 ";
 
-            using (var conn = _dbConnectionProvider.CreateConnection())
-            {
-                using (var transaction = conn.BeginTransaction())
+                using (var conn = _dbConnectionProvider.CreateConnection())
                 {
-                    try
+                    using (var transaction = conn.BeginTransaction())
                     {
-                        var parameters = new DynamicParameters(detail);
-                        if (compCodeProperty != null && companyCode != null)
+                        try
                         {
-                            parameters.Add("@CompCode", companyCode);
-                        }
+                            var parameters = new DynamicParameters(detail);
+                            if (compCodeProperty != null && companyCode != null)
+                            {
+                                parameters.Add("@CompCode", companyCode);
+                            }
 
-                        var rowsAffected = await conn.ExecuteAsync(updateDetailSql, parameters, transaction);
+                            var rowsAffected = await conn.ExecuteAsync(updateDetailSql, parameters, transaction);
 
-                        if (rowsAffected == 0)
-                        {
-                           throw new InvalidOperationException($"{_appSettings.SuccessStrings.UpdateNotFound}");
-                        }
-                        else
-                        {
-                            // Retrieve the updated row
-                            var getUpdatedRowSql = $@"
+                            if (rowsAffected == 0)
+                            {
+                                throw new InvalidOperationException($"{_appSettings.SuccessStrings.UpdateNotFound}");
+                            }
+                            else
+                            {
+                                // Retrieve the updated row
+                                var getUpdatedRowSql = $@"
 SELECT * FROM {_detailTableName}
 WHERE {string.Join(" AND ", detailKeyProperties.Select(p => $"{p.Name} = @{p.Name}"))}
 {(compCodeProperty != null && companyCode != null ? $"AND {compCodeProperty.Name} = @CompCode" : "")}
 ";
 
-                            var getUpdatedRowParams = new DynamicParameters();
-                            foreach (var keyProp in detailKeyProperties)
-                            {
-                                getUpdatedRowParams.Add($"@{keyProp.Name}", keyProp.GetValue(detail));
-                            }
-                            if (compCodeProperty != null && companyCode != null)
-                            {
-                                getUpdatedRowParams.Add("@CompCode", companyCode);
+                                var getUpdatedRowParams = new DynamicParameters();
+                                foreach (var keyProp in detailKeyProperties)
+                                {
+                                    getUpdatedRowParams.Add($"@{keyProp.Name}", keyProp.GetValue(detail));
+                                }
+                                if (compCodeProperty != null && companyCode != null)
+                                {
+                                    getUpdatedRowParams.Add("@CompCode", companyCode);
+                                }
+
+                                var updatedRow = await conn.QueryFirstOrDefaultAsync<TDetail>(getUpdatedRowSql, getUpdatedRowParams, transaction);
+
+                                response.ValidationSuccess = true;
+                                response.StatusCode = _appSettings.StatusCodes.Success;
+                                response.ReturnCompleteRow = updatedRow;
                             }
 
-                            var updatedRow = await conn.QueryFirstOrDefaultAsync<TDetail>(getUpdatedRowSql, getUpdatedRowParams, transaction);
-
-                            response.ValidationSuccess = true;
-                            response.StatusCode = _appSettings.StatusCodes.Success;
-                            response.ReturnCompleteRow = updatedRow;
+                            transaction.Commit();
                         }
+                        catch (Exception ex)
+                        {
+                            transaction.Rollback();
 
-                        transaction.Commit();
-                    }
-                    catch (Exception ex)
-                    {
-                        transaction.Rollback();
-                        response.ValidationSuccess = false;
-                        response.StatusCode = _appSettings.StatusCodes.Error;
+                            var errorMessage = await GetCustomErrorMessage(ex.Message, conn, transaction);
 
-                        response.ErrorString = ex.Message;
+                            response.ValidationSuccess = false;
+                            response.StatusCode = _appSettings.StatusCodes.Error;
+                            response.ErrorString = errorMessage ?? ex.Message;
+                        }
                     }
                 }
-            }
 
-            return response;
+                return response;
+            }
+            catch (Exception ex)
+            {
+
+                response.ValidationSuccess = false;
+                response.StatusCode = _appSettings.StatusCodes.Error;
+                response.ErrorString = ex.Message;
+                return response;
+            }
         }
 
-        public async Task<CommonResponse<TDetail>> UpdateDetailByIdentity_old(TDetail detail, string companyCode, string user)
-        {
-            var response = new CommonResponse<TDetail>();
-            var detailKeyProperties = GetPrimaryKeyProperties<TDetail>();
-
-            if (!detailKeyProperties.Any())
-            {
-                response.ValidationSuccess = false;
-                response.SuccessString = "500";
-                response.ErrorString = "Primary key not found for Detail Update.";
-                return response;
-            }
-
-            var primaryKeyValues = detailKeyProperties.Select(p => p.GetValue(detail)?.ToString()).ToArray();
-
-            if (primaryKeyValues.Any(string.IsNullOrEmpty))
-            {
-                response.ValidationSuccess = false;
-                response.SuccessString = "500";
-                response.ErrorString = "Primary key value is required for Detail Update.";
-                return response;
-            }
-
-            var updateDateDetailProperty = typeof(TDetail).GetProperties().FirstOrDefault(p => p.Name.EndsWith("_UPD_DT"));
-            if (updateDateDetailProperty == null)
-            {
-                response.ValidationSuccess = false;
-                response.SuccessString = "500";
-                response.ErrorString = "Updated date field not found.";
-                return response;
-            }
-
-            // Get the company code property from the detail type
-            var compCodeProperty = typeof(TDetail).GetProperties().FirstOrDefault(p => p.Name.EndsWith("_COMP_CODE", StringComparison.OrdinalIgnoreCase));
-            if (compCodeProperty == null)
-            {
-                response.ValidationSuccess = false;
-                response.SuccessString = "500";
-                response.ErrorString = "Company code property not found in the detail type.";
-                return response;
-            }
-
-            // Get the current date and time
-            var currentDateTime = GetCurrentDateTime();
-
-            var updateDetailSql = $@"
-UPDATE {_detailTableName}
-SET {string.Join(",", GetColumnNames<TDetail>().Where(c => !c.EndsWith("_CR_DT") && c != detailKeyProperties.FirstOrDefault().Name).Select(c => $"{c} = @{c}"))}   
-{(updateDateDetailProperty != null ? $", {updateDateDetailProperty.Name} ={currentDateTime}" : "")} 
-WHERE {string.Join(" AND ", detailKeyProperties.Select(p => $"{p.Name} = @{p.Name}"))}
-AND {compCodeProperty.Name} = @CompCode
-{(updateDateDetailProperty != null ? $" AND ({updateDateDetailProperty.Name} IS NULL OR {updateDateDetailProperty.Name} = @{updateDateDetailProperty.Name})" : "")};
-";
-
-            var insertDetailColumns = GetColumnNames<TDetail>(true).ToList();
-            var insertDetailValues = insertDetailColumns.Select(c => $"@{c}").ToList();
-
-            // Exclude the identity column from the detail insert
-            var detailPrimaryKeyProperty = typeof(TDetail).GetProperties().FirstOrDefault(p => Attribute.IsDefined(p, typeof(KeyAttribute)));
-            if (detailPrimaryKeyProperty != null)
-            {
-                var detailPrimaryKeyColumnName = detailPrimaryKeyProperty.Name;
-                insertDetailColumns = insertDetailColumns.Where(c => c != detailPrimaryKeyColumnName).ToList();
-                insertDetailValues = insertDetailValues.Where(v => v != $"@{detailPrimaryKeyColumnName}").ToList();
-            }
-
-            // Replace _CR_DT columns with the current date and time
-
-            for (int i = 0; i < insertDetailColumns.Count; i++)
-            {
-                if (insertDetailColumns[i].EndsWith("_CR_DT"))
-                {
-                    insertDetailValues[i] = $"'{currentDateTime}'";
-                }
-            }
-
-            ////            var insertDetailSql = $@"
-            ////INSERT INTO {_detailTableName} ({string.Join(",", insertDetailColumns)})
-            ////VALUES ({string.Join(",", insertDetailValues)});
-            ////";
-
-            using (var conn = _dbConnectionProvider.CreateConnection())
-            {
-                using (var transaction = conn.BeginTransaction())
-                {
-                    try
-                    {
-                        var parameters = new DynamicParameters(detail);
-                        parameters.Add("@CompCode", companyCode);
-
-                        var rowsAffected = await conn.ExecuteAsync(updateDetailSql, parameters, transaction);
-
-                        ////if (rowsAffected == 0)
-                        ////{
-                        ////    await conn.ExecuteAsync(insertDetailSql, parameters, transaction);
-                        ////}
-
-                        transaction.Commit();
-
-                        response.ValidationSuccess = true;
-                        response.SuccessString = "200";
-                        response.ReturnCompleteRow = detail;
-                    }
-                    catch (Exception ex)
-                    {
-                        transaction.Rollback();
-                        response.ValidationSuccess = false;
-                        response.SuccessString = "500";
-                        response.ErrorString = ex.Message;
-                    }
-                }
-            }
-
-            return response;
-        }
-
+        
         public async Task<CommonResponse<TDetail>> UpdateDetailByIdentity(TDetail detail, string companyCode, string user)
         {
             var response = new CommonResponse<TDetail>();
@@ -1198,7 +1264,7 @@ WHERE {string.Join(" AND ", detailKeyProperties.Select(p => $"{p.Name} = @{p.Nam
                             var getUpdatedRowSql = $@"
 SELECT * FROM {_detailTableName}
 WHERE {string.Join(" AND ", detailKeyProperties.Select(p => $"{p.Name} = @{p.Name}"))}
-{(compCodeProperty != null ? $"AND {compCodeProperty.Name} = @CompCode" : "")}
+{(compCodeProperty != null && companyCode != null ? $"AND {compCodeProperty.Name} = @CompCode" : "")}
 ";
 
                             var getUpdatedRowParams = new DynamicParameters();
@@ -1206,7 +1272,7 @@ WHERE {string.Join(" AND ", detailKeyProperties.Select(p => $"{p.Name} = @{p.Nam
                             {
                                 getUpdatedRowParams.Add($"@{keyProp.Name}", keyProp.GetValue(detail));
                             }
-                            if (compCodeProperty != null)
+                            if (compCodeProperty != null && companyCode != null)
                             {
                                 getUpdatedRowParams.Add("@CompCode", companyCode);
                             }
@@ -1214,7 +1280,8 @@ WHERE {string.Join(" AND ", detailKeyProperties.Select(p => $"{p.Name} = @{p.Nam
                             var updatedRow = await conn.QueryFirstOrDefaultAsync<TDetail>(getUpdatedRowSql, getUpdatedRowParams, transaction);
 
                             response.ValidationSuccess = true;
-                            response.SuccessString = "200";
+                            response.StatusCode=_appSettings.StatusCodes.Success;
+                            response.SuccessString = _appSettings.SuccessStrings.UpdateSuccess;
                             response.ReturnCompleteRow = updatedRow;
                         }
 
@@ -1223,9 +1290,11 @@ WHERE {string.Join(" AND ", detailKeyProperties.Select(p => $"{p.Name} = @{p.Nam
                     catch (Exception ex)
                     {
                         transaction.Rollback();
+                        var errorMessage = await GetCustomErrorMessage(ex.Message, conn, transaction);
+
                         response.ValidationSuccess = false;
-                        response.SuccessString = "500";
-                        response.ErrorString = ex.Message;
+                        response.StatusCode = _appSettings.StatusCodes.Error;
+                        response.ErrorString = errorMessage ?? ex.Message;
                     }
                 }
             }
@@ -1233,158 +1302,7 @@ WHERE {string.Join(" AND ", detailKeyProperties.Select(p => $"{p.Name} = @{p.Nam
             return response;
         }
 
-        public async Task<CommonResponse<T>> Delete_old(T obj, string companyCode, string user)
-        {
-            var response = new CommonResponse<T>();
-
-            var primaryKeyProperties = GetKeyPropertyName();
-            if (primaryKeyProperties == null || !primaryKeyProperties.Any())
-            {
-                throw new InvalidOperationException("Primary key properties not found.");
-            }
-
-            // Get primary key values
-            var primaryKeyValues = new Dictionary<string, object>();
-            foreach (var prop in primaryKeyProperties)
-            {
-                var value = prop.GetValue(obj);
-                if (value == null)
-                {
-                    throw new InvalidOperationException($"Primary key property '{prop.Name}' value is null.");
-                }
-                primaryKeyValues.Add(prop.Name, value);
-            }
-
-            
-
-            // Get the detail property dynamically
-            var detailProperty = typeof(T).GetProperties().FirstOrDefault(p => p.PropertyType.IsGenericType && p.PropertyType.GetGenericTypeDefinition() == typeof(List<>));
-            var detailType = detailProperty?.PropertyType.GetGenericArguments().FirstOrDefault();
-
-            // Get key properties and company code property from the detail type
-            var keyProperties = detailType?.GetProperties().Where(p => p.GetCustomAttributes(typeof(KeyAttribute), false).Any()).ToList();
-            var compCodePropertyDetail = detailType?.GetProperties().FirstOrDefault(p => p.Name.EndsWith("_COMP_CODE", StringComparison.OrdinalIgnoreCase));
-            var updDtPropertyDetail = detailType?.GetProperties().FirstOrDefault(p => p.Name.EndsWith("_UPD_DT", StringComparison.OrdinalIgnoreCase));
-
-            // Get the company code and update date property from the header type
-            var headerType = typeof(T);
-            var compCodePropertyHeader = headerType.GetProperties().FirstOrDefault(p => p.Name.EndsWith("_COMP_CODE", StringComparison.OrdinalIgnoreCase));
-            var updDtPropertyHeader = headerType.GetProperties().FirstOrDefault(p => p.Name.EndsWith("_UPD_DT", StringComparison.OrdinalIgnoreCase));
-
-            if (compCodePropertyHeader == null)
-            {
-                throw new InvalidOperationException("Company code property not found in the header type.");
-            }
-
-            // Generate the WHERE clause for the detail table
-            var detailWhereClauses = keyProperties
-                .Select(p => $"{p.Name} = @{p.Name}")
-                .ToList();         
-                detailWhereClauses.Add($"{compCodePropertyDetail?.Name} = @CompCode");  
-            if (updDtPropertyDetail != null)
-            {
-                detailWhereClauses.Add($"({updDtPropertyDetail.Name} = @UpdDt OR {updDtPropertyDetail.Name} IS NULL)");
-            }
-
-            var deleteDetailSql = $@"
-DELETE FROM {_detailTableName}
-WHERE {string.Join(" AND ", detailWhereClauses)};
-";
-
-            // Generate the WHERE clause for the header table
-            var headerWhereClauses = primaryKeyProperties
-                .Select(p => $"{p.Name} = @{p.Name}")
-                .ToList();            
-                headerWhereClauses.Add($"{compCodePropertyHeader.Name} = @CompCode");            
-            if (updDtPropertyHeader != null)
-            {
-                headerWhereClauses.Add($"({updDtPropertyHeader.Name} = @UpdDt OR {updDtPropertyHeader.Name} IS NULL)");
-            }
-
-            var deleteHeaderSql = $@"
-DELETE FROM {_tableName}
-WHERE {string.Join(" AND ", headerWhereClauses)};
-";
-
-            using (var conn = _dbConnectionProvider.CreateConnection())
-            {
-                using (var transaction = conn.BeginTransaction())
-                {
-                    try
-                    {
-                        // Flag variables to track if rows were deleted
-                        bool detailRowsDeleted = false;
-                        bool headerRowsDeleted = false;
-
-                        // Create a dictionary for the detail deletion parameters
-                        var detailList = detailProperty?.GetValue(obj) as IList;
-                        if (detailList != null && detailList.Count > 0)
-                        {
-                            foreach (var detailObj in detailList)
-                            {
-                                var deleteDetailParams = new DynamicParameters();
-                                foreach (var keyProp in keyProperties)
-                                {
-                                    var keyPropValue = keyProp.GetValue(detailObj)?.ToString();
-                                    if (!string.IsNullOrEmpty(keyPropValue))
-                                    {
-                                        deleteDetailParams.Add($"@{keyProp.Name}", keyPropValue);
-                                    }
-                                }
-                                deleteDetailParams.Add("@CompCode", companyCode);
-                                if (updDtPropertyDetail != null)
-                                {
-                                    var updDtValue = updDtPropertyDetail.GetValue(detailObj);
-                                    deleteDetailParams.Add("@UpdDt", updDtValue ?? DBNull.Value, dbType: DbType.Object);
-                                }
-
-                                // Delete the details
-                                var rowsAffected = await conn.ExecuteAsync(deleteDetailSql, deleteDetailParams, transaction);
-                                if (rowsAffected > 0)
-                                {
-                                    detailRowsDeleted = true;
-                                }
-                            }
-                        }
-
-                        // Create a dictionary for the header deletion parameters
-                        var deleteHeaderParams = new DynamicParameters();
-                        foreach (var pk in primaryKeyValues)
-                        {
-                            deleteHeaderParams.Add($"@{pk.Key}", pk.Value);
-                        }
-                        deleteHeaderParams.Add("@CompCode", companyCode);
-                        if (updDtPropertyHeader != null)
-                        {
-                            var updDtValue = updDtPropertyHeader.GetValue(obj);
-                            deleteHeaderParams.Add("@UpdDt", updDtValue ?? DBNull.Value, dbType: DbType.Object);
-                        }
-
-                        // Delete the header
-                        var headerRowsAffected = await conn.ExecuteAsync(deleteHeaderSql, deleteHeaderParams, transaction);
-                        if (headerRowsAffected > 0)
-                        {
-                            headerRowsDeleted = true;
-                        }
-
-                        // Commit the transaction
-                        transaction.Commit();
-
-                        response.ValidationSuccess = detailRowsDeleted || headerRowsDeleted;
-                        response.SuccessString = response.ValidationSuccess ? "200" : "204"; // 204 No Content if nothing was deleted
-                    }
-                    catch (Exception ex)
-                    {
-                        // Rollback the transaction in case of an error
-                        transaction.Rollback();
-                        response.ValidationSuccess = false;
-                        response.SuccessString = "500";
-                        response.ErrorString = ex.Message;
-                    }
-                }
-            }
-            return response;
-        }
+        
 
         public async Task<CommonResponse<T>> Delete(T obj, string companyCode, string user)
         {
@@ -1533,15 +1451,18 @@ WHERE {string.Join(" AND ", headerWhereClauses)};
                         transaction.Commit();
 
                         response.ValidationSuccess = detailRowsDeleted || headerRowsDeleted;
-                        response.StatusCode = "200";
-                        response.SuccessString = "Header And Details Deleted Succesfully"; 
+                        response.StatusCode = _appSettings.StatusCodes.Success;
+                        response.SuccessString = _appSettings.SuccessStrings.DeleteSuccess; 
                     }
                     catch (Exception ex)
                     {
                         // Rollback the transaction in case of an error
                         transaction.Rollback();
+
+                        var errorMessage = await GetCustomErrorMessage(ex.Message, conn, transaction);
+
                         response.ValidationSuccess = false;
-                        response.SuccessString = "500";
+                        response.StatusCode = _appSettings.StatusCodes.Error;
                         response.ErrorString = ex.Message;
                     }
                 }
@@ -1612,7 +1533,10 @@ WHERE {string.Join(" AND ", detailWhereClauses)};
                                 deleteDetailParams.Add($"@{keyProp.Name}", keyPropValue);
                             }
                         }
-                        deleteDetailParams.Add("@CompCode", companyCode);
+                        if (compCodeProperty != null && companyCode != null)
+                        {
+                            deleteDetailParams.Add("@CompCode", companyCode);
+                        }
                         if (updDtPropertyDetail != null)
                         {
                             var updDtValue = updDtPropertyDetail.GetValue(detail);
@@ -1634,16 +1558,19 @@ WHERE {string.Join(" AND ", detailWhereClauses)};
                         transaction.Commit();
 
                         response.ValidationSuccess = detailRowsDeleted;
-                        response.StatusCode = "200";
-                        response.SuccessString = "Row Deleted Successfully";
+                        response.StatusCode = _appSettings.StatusCodes.Success;
+                        response.SuccessString = _appSettings.SuccessStrings.DeleteSuccess;
                     }
                     catch (Exception ex)
                     {
                         // Rollback the transaction in case of an error
                         transaction.Rollback();
+
+                        var errorMessage = await GetCustomErrorMessage(ex.Message, conn, transaction);
+
                         response.ValidationSuccess = false;
-                        response.SuccessString = "500";
-                        response.ErrorString = ex.Message;
+                        response.StatusCode = _appSettings.StatusCodes.Error;
+                        response.ErrorString = errorMessage ?? ex.Message;
                     }
                 }
             }
@@ -1794,10 +1721,10 @@ WHERE {string.Join(" AND ", detailWhereClauses)};
 
 
 
-
         public async Task<CommonResponse<IEnumerable<T>>> Search<T>(string jsonModel, string sortBy, int pageNo, int pageSize, string companyCode, string user, string whereClause, string showDetail)
         {
             var response = new CommonResponse<IEnumerable<T>>();
+            var dbType = _dbConnectionProvider.GetDatabaseType();
             try
             {
                 var whereConditions = new List<string>();
@@ -1827,8 +1754,8 @@ WHERE {string.Join(" AND ", detailWhereClauses)};
 
                         if (value != null && !string.IsNullOrEmpty(value.ToString()))
                         {
-                            whereConditions.Add($"{columnName} LIKE @{columnName}");
-                            parameters.Add($"@{columnName}", value.ToString());
+                            whereConditions.Add($"{columnName} LIKE {GetParamPrefix()}{columnName}");
+                            parameters.Add($"{GetParamPrefix()}{columnName}", $"%{value}%");
                         }
                     }
                 }
@@ -1842,8 +1769,8 @@ WHERE {string.Join(" AND ", detailWhereClauses)};
                 if (compCodeProperties != null && companyCode == null)
                 {
                     // Query v_adm_user_locn to get all comp_code for the given user
-                    var view_Query = "SELECT DISTINCT UL_COMP_CODE FROM v_adm_user_locn WHERE ul_frz_flag = 'N' AND ul_user_id = @User";
-                    parameters.Add("@User", user);
+                    var view_Query = $"SELECT DISTINCT UL_COMP_CODE FROM v_adm_user_locn WHERE ul_frz_flag = 'N' AND ul_user_id = {GetParamPrefix()}User";
+                    parameters.Add($"{GetParamPrefix()}User", user);
 
                     using (var conn = _dbConnectionProvider.CreateConnection())
                     {
@@ -1862,8 +1789,8 @@ WHERE {string.Join(" AND ", detailWhereClauses)};
                     foreach (var prop in compCodeProperties)
                     {
                         var columnName = prop.Name.ToUpper();
-                        whereConditions.Add($"{columnName} = @{columnName}");
-                        parameters.Add($"@{columnName}", companyCode);
+                        whereConditions.Add($"{columnName} = {GetParamPrefix()}{columnName}");
+                        parameters.Add($"{GetParamPrefix()}{columnName}", companyCode);
                     }
                 }
 
@@ -1872,8 +1799,20 @@ WHERE {string.Join(" AND ", detailWhereClauses)};
                 {
                     var modifiedWhereClause = whereClause;
 
-                    // Handle _CR_DT and _UPD_DT columns with ConvertDate function
-                    modifiedWhereClause = Regex.Replace(modifiedWhereClause, @"(\b\w+_CR_DT\b|\b\w+_UPD_DT\b)", match => $"dbo.ConvertDate({match.Value})");
+                    //// Handle _CR_DT and _UPD_DT columns with ConvertDate function
+                    //// UPDATED: Regex.Replace to handle dbo.ConvertDate function
+                    ////modifiedWhereClause = Regex.Replace(modifiedWhereClause, @"(\b\w+_CR_DT\b|\b\w+_UPD_DT\b)", match => $"dbo.ConvertDate({match.Value})");
+                    ///
+
+                    // Handle _CR_DT and _UPD_DT columns with appropriate function based on dbType
+                    if (dbType == "SQL")
+                    {
+                        modifiedWhereClause = Regex.Replace(modifiedWhereClause, @"(\b\w+_CR_DT\b|\b\w+_UPD_DT\b)", match => $"CONVERT(DATE, {match.Value})");
+                    }
+                    else if (dbType == "ORACLE")
+                    {
+                        modifiedWhereClause = Regex.Replace(modifiedWhereClause, @"(\b\w+_CR_DT\b|\b\w+_UPD_DT\b)", match => $"TO_CHAR({match.Value}, 'DD-MON-YYYY')");
+                    }
 
                     whereConditions.Add(modifiedWhereClause);
                 }
@@ -1890,14 +1829,15 @@ SELECT *
 FROM {_tableName}
 {whereSql}
 ORDER BY {orderByColumn}
-OFFSET @Offset ROWS FETCH NEXT @PageSize ROWS ONLY;";
+OFFSET {GetParamPrefix()}Offset ROWS FETCH NEXT {GetParamPrefix()}PageSize ROWS ONLY;";
 
-                parameters.Add("@Offset", offset);
-                parameters.Add("@PageSize", pageSize);
+                parameters.Add($"{GetParamPrefix()}Offset", offset);
+                parameters.Add($"{GetParamPrefix()}PageSize", pageSize);
 
                 using (var conn = _dbConnectionProvider.CreateConnection())
                 {
                     // Log the SQL query and parameters for debugging
+                    // UPDATED: Added logging of SQL query and parameters
                     Console.WriteLine("SQL Query: " + sql);
                     foreach (var param in parameters.ParameterNames)
                     {
@@ -1964,14 +1904,139 @@ ORDER BY {orderByColumn}
                     }
 
                     response.ValidationSuccess = true;
-                    response.SuccessString = "200";
                     response.ReturnCompleteRow = result;
                 }
             }
             catch (Exception ex)
             {
                 response.ValidationSuccess = false;
-                response.SuccessString = "500";
+                response.ErrorString = ex.Message;
+            }
+
+            return response;
+        }
+
+        public async Task<CommonResponse<int>> SearchCount(string jsonModel, string companyCode, string user, string whereClause)
+        {
+            var response = new CommonResponse<int>();
+            var dbType = _dbConnectionProvider.GetDatabaseType();
+            try
+            {
+                var whereConditions = new List<string>();
+                var parameters = new DynamicParameters();
+
+                // Log the raw input data from Postman
+                Console.WriteLine("Raw Input Data:");
+                Console.WriteLine($"jsonModel: {jsonModel}");
+                Console.WriteLine($"companyCode: {companyCode}");
+                Console.WriteLine($"user: {user}");
+                Console.WriteLine($"whereClause: {whereClause}");
+
+                // Deserialize the JSON model into a dictionary if not null
+                if (!string.IsNullOrEmpty(jsonModel))
+                {
+                    var modelDict = JsonConvert.DeserializeObject<Dictionary<string, object>>(jsonModel);
+
+                    // Add properties from the model to the whereConditions list
+                    foreach (var kvp in modelDict)
+                    {
+                        var columnName = kvp.Key.ToUpper();
+                        var value = kvp.Value;
+
+                        if (value != null && !string.IsNullOrEmpty(value.ToString()))
+                        {
+                            whereConditions.Add($"{columnName} LIKE {GetParamPrefix()}{columnName}");
+                            parameters.Add($"{GetParamPrefix()}{columnName}", $"%{value}%");
+                        }
+                    }
+                }
+
+                // Add dynamic conditions for properties ending with _COMP_CODE, excluding fm_comp_code and to_comp_code
+                var modelProperties = typeof(T).GetProperties();
+                var compCodeProperties = modelProperties.Where(p => p.Name.EndsWith("_COMP_CODE", StringComparison.OrdinalIgnoreCase) &&
+                                                                    !string.Equals(p.Name, "FM_COMP_CODE", StringComparison.OrdinalIgnoreCase) &&
+                                                                    !string.Equals(p.Name, "TO_COMP_CODE", StringComparison.OrdinalIgnoreCase)).ToList();
+
+                if (compCodeProperties != null && companyCode == null)
+                {
+                    // Query v_adm_user_locn to get all comp_code for the given user
+                    var view_Query = $"SELECT DISTINCT UL_COMP_CODE FROM v_adm_user_locn WHERE ul_frz_flag = 'N' AND ul_user_id = {GetParamPrefix()}User";
+                    parameters.Add($"{GetParamPrefix()}User", user);
+
+                    using (var conn = _dbConnectionProvider.CreateConnection())
+                    {
+                        var compCodes = (await conn.QueryAsync<string>(view_Query, parameters)).ToList();
+
+                        if (compCodes.Any())
+                        {
+                            // Add comp_code conditions to the where clause using IN clause
+                            var compCodeCondition = $"{compCodeProperties.First().Name} IN ({string.Join(", ", compCodes.Select(compCode => $"'{compCode}'"))})";
+                            whereConditions.Add($"({compCodeCondition})");
+                        }
+                    }
+                }
+                else
+                {
+                    foreach (var prop in compCodeProperties)
+                    {
+                        var columnName = prop.Name.ToUpper();
+                        whereConditions.Add($"{columnName} = {GetParamPrefix()}{columnName}");
+                        parameters.Add($"{GetParamPrefix()}{columnName}", companyCode);
+                    }
+                }
+
+                // Process additional whereClause condition if provided
+                if (!string.IsNullOrEmpty(whereClause))
+                {
+                    var modifiedWhereClause = whereClause;
+
+                    // Handle _CR_DT and _UPD_DT columns with appropriate function based on dbType
+                    if (dbType == "SQL")
+                    {
+                        modifiedWhereClause = Regex.Replace(modifiedWhereClause, @"(\b\w+_CR_DT\b|\b\w+_UPD_DT\b)", match => $"CONVERT(DATE, {match.Value})");
+                    }
+                    else if (dbType == "ORACLE")
+                    {
+                        modifiedWhereClause = Regex.Replace(modifiedWhereClause, @"(\b\w+_CR_DT\b|\b\w+_UPD_DT\b)", match => $"TO_CHAR({match.Value}, 'DD-MON-YYYY')");
+                    }
+
+                    whereConditions.Add(modifiedWhereClause);
+                }
+
+                // Construct the final SQL query to count the rows
+                var whereSql = whereConditions.Any() ? "WHERE " + string.Join(" AND ", whereConditions) : string.Empty;
+                var sql = $@"
+SELECT COUNT(*) 
+FROM {_tableName}
+{whereSql};";
+
+                using (var conn = _dbConnectionProvider.CreateConnection())
+                {
+                    // Log the SQL query and parameters for debugging
+                    Console.WriteLine("SQL Query: " + sql);
+                    foreach (var param in parameters.ParameterNames)
+                    {
+                        Console.WriteLine($"{param}: {parameters.Get<dynamic>(param)}");
+                    }
+
+                    var count = await conn.ExecuteScalarAsync<int>(sql, parameters);
+
+                    if (count > 0)
+                    {
+                        response.ValidationSuccess = true;
+                        response.ReturnCompleteRow = count;
+                    }
+                    else
+                    {
+                        response.ValidationSuccess = true;
+                        response.SuccessString = _appSettings.SuccessStrings.NoData;
+                        response.ReturnCompleteRow = count;
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                response.ValidationSuccess = false;
                 response.ErrorString = ex.Message;
             }
 

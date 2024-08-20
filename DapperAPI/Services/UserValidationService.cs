@@ -20,6 +20,8 @@ namespace DapperAPI.Services
         private readonly IDbConnectionProvider _dbConnectionProvider;
         private readonly IConfiguration _configuration;
         public string key, refreshKey;
+        private readonly string dbType;
+        private readonly string paramPrefix;
         public int tokenlifetime, refreshlife;
         private authToken objToken;
         public CommonResponse<object> objModelError;
@@ -31,17 +33,22 @@ namespace DapperAPI.Services
             refreshKey = _configuration.GetSection("JWT").GetSection("RefreshKey").Value;
             tokenlifetime = Convert.ToInt32(_configuration.GetSection("JWT").GetSection("TockenLife").Value);
             refreshlife = Convert.ToInt32(_configuration.GetSection("JWT").GetSection("RefreshLife").Value);
+            dbType = _dbConnectionProvider.GetDatabaseType();
+            paramPrefix = dbType == "ORACLE" ? ":" : "@";
 
         }
 
+        private string GetParamPrefix() => paramPrefix;
 
-            public async Task<string> GetUserTypeAsync(string userId)
+
+        public async Task<string> GetUserTypeAsync(string userId)
         {
+
             using (var conn = _dbConnectionProvider.CreateConnection())
             {
-                var user = await conn.QueryFirstOrDefaultAsync<ADM_USER>(
-            "SELECT USER_TYPE FROM ADM_USER WHERE USER_ID = @UserId AND USER_FRZ_FLAG = 'N'",
-            new { UserId = userId });
+               
+                string query = $"SELECT USER_TYPE FROM ADM_USER WHERE USER_ID = {GetParamPrefix()}UserId AND USER_FRZ_FLAG = 'N'";
+                var user = await conn.QueryFirstOrDefaultAsync<ADM_USER>(query,new { UserId = userId });
 
                 return user?.USER_TYPE;
             }
@@ -51,11 +58,11 @@ namespace DapperAPI.Services
         {
             using (var conn = _dbConnectionProvider.CreateConnection())
             {
-                var user = await conn.QueryFirstOrDefaultAsync<ADM_USER>(
-            "SELECT 1 FROM ADM_USER WHERE USER_ID = @UserId AND USER_FRZ_FLAG = 'N'",
-            new { UserId = userId });
+               
+                string query = $"SELECT COUNT(1) FROM ADM_USER WHERE USER_ID = {GetParamPrefix()}UserId AND USER_FRZ_FLAG = 'N'";
+                var user = await conn.QueryFirstOrDefaultAsync<int>(query,new { UserId = userId });
 
-                return user != null;
+                return user>0;
             }
         }
 
@@ -63,8 +70,9 @@ namespace DapperAPI.Services
         {
             using (var conn = _dbConnectionProvider.CreateConnection())
             {
+                
                 var userComp = await conn.QueryFirstOrDefaultAsync<ADM_USER_COMP>(
-            "SELECT 1 FROM ADM_USER_COMP WHERE UC_USER_ID = @UserId AND UC_COMP_CODE = @CompanyCode",
+            $"SELECT COUNT(1) FROM ADM_USER_COMP WHERE UC_USER_ID = {GetParamPrefix()}UserId AND UC_COMP_CODE = {GetParamPrefix()}CompanyCode",
             new { UserId = userId, CompanyCode = companyCode });
 
                 return userComp != null;
@@ -75,8 +83,9 @@ namespace DapperAPI.Services
         {
             using (var conn = _dbConnectionProvider.CreateConnection())
             {
+                
                 var company = await conn.QueryFirstOrDefaultAsync<FM_COMPANY>(
-            "SELECT 1 FROM FM_COMPANY WHERE COMP_CODE = @CompanyCode AND COMP_FRZ_FLAG = 'N'",
+            $"SELECT COUNT(1) FROM FM_COMPANY WHERE COMP_CODE = {GetParamPrefix()}CompanyCode AND COMP_FRZ_FLAG = 'N'",
             new { CompanyCode = companyCode });
 
                 return company != null;

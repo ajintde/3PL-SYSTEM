@@ -4,4 +4,8 @@
     {
         public string SqlConnectionString { get; set; }
     }
+    public class OracleConnectionSetting
+    {
+        public string OracleConnectionString { get; set; }
+    }
 }

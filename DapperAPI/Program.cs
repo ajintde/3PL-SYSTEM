@@ -23,6 +23,7 @@ using Microsoft.AspNetCore.Mvc;
 using System.Net;
 using Microsoft.AspNetCore.Http;
 using System.Threading;
+using Microsoft.Extensions.Options;
 
 
 var builder = WebApplication.CreateBuilder(args);
@@ -40,7 +41,11 @@ builder.Services.Configure<ApiBehaviorOptions>(options
     => options.SuppressModelStateInvalidFilter = true);
 // Add services to the container.
 builder.Services.Configure<SqlConnectionSetting>(builder.Configuration.GetSection("ConnectionStrings"));
+builder.Services.Configure<OracleConnectionSetting>(builder.Configuration.GetSection("ConnectionStrings"));
+builder.Services.Configure<DatabaseTypeSetting>(builder.Configuration.GetSection("DatabaseTypeSetting"));
+
 builder.Services.AddControllers();
+builder.Services.AddLogging();
 // Learn more about configuring Swagger/OpenAPI at https://aka.ms/aspnetcore/swashbuckle
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddScoped(typeof(IOneRepository<>), typeof(OneRepository<>));
@@ -48,10 +53,19 @@ builder.Services.AddScoped(typeof(ITwoRepository<OM_ITEM,OM_ITEM_UOM>), typeof(T
 builder.Services.AddScoped(typeof(ITwoRepository<WT_STK_OUT_HEAD, WT_STK_OUT_ITEM>), typeof(TwoRepository<WT_STK_OUT_HEAD, WT_STK_OUT_ITEM>));
 builder.Services.AddScoped(typeof(ITwoRepository<WT_STK_OUT_ITEM, WT_STK_OUT_ITEM>), typeof(TwoRepository<WT_STK_OUT_ITEM, WT_STK_OUT_ITEM>));
 builder.Services.AddScoped(typeof(ITwoRepository<OM_ITEM_UOM, OM_ITEM_UOM>), typeof(TwoRepository<OM_ITEM_UOM, OM_ITEM_UOM>));
-builder.Services.AddScoped<IDbConnectionProvider, DbConnectionProvider>();
+
 builder.Services.AddScoped<IUserValidationService, UserValidationService>();
 
+//builder.Services.AddScoped<IDbConnectionProvider, DbConnectionProvider>();
 
+builder.Services.AddSingleton<IDbConnectionProvider>(sp =>
+    new DbConnectionProvider(
+        sp.GetRequiredService<IOptions<SqlConnectionSetting>>(),
+        sp.GetRequiredService<IOptions<OracleConnectionSetting>>(),
+        sp.GetRequiredService<IOptions<DatabaseTypeSetting>>()));
+
+// Register the global exception handler as a singleton service
+builder.Services.AddSingleton<IExceptionHandler, GlobalExceptionHandler>();
 
 // Add services to the container.
 builder.Services.Configure<AppSettings>(builder.Configuration);
@@ -122,19 +136,21 @@ app.UseAuthentication();
 app.UseAuthorization();
 app.MapControllers();
 app.UseMiddleware<JwtMiddleware>();
+// Add the global exception handler middleware
+app.UseMiddleware<DapperAPI.Services.ExceptionHandlerMiddleware>();
 
 
 app.UseCors("AllowAll");
 
 try
 {
-    Log.Information("Starting up");
+    Log.Information($"Starting up on : {DateTime.Now}");
     app.Run();
 }
 
 catch(Exception ex)
 {
-    Log.Fatal(ex, "Application start-up failed");
+    Log.Fatal(ex, $"Application start-up failed on: {DateTime.Now}");
 }
 finally
 {
